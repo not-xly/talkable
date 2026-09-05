@@ -41,8 +41,8 @@ Descargá los archivos del [último release](https://github.com/not-xly/talkable
 
 | Plataforma | Archivo |
 |---|---|
-| Windows (x64) | `Talkable_0.1.0_x64-setup.exe` (instalador NSIS) |
-| Linux (x86_64) | `Talkable_0.1.0_amd64.AppImage` (portable, ~84 MB) o `Talkable_0.1.0_amd64.deb` (~7 MB + paquetes del sistema) |
+| Windows (x64) | `Talkable_0.2.0_x64-setup.exe` (instalador NSIS) |
+| Linux (x86_64) | `Talkable_0.2.0_amd64.AppImage` (portable, ~84 MB) o `Talkable_0.2.0_amd64.deb` (~7 MB + paquetes del sistema) |
 | macOS | `Talkable-macOS.zip` (contiene `Talkable.app`) |
 
 También hay builds de cada push en los artefactos de [Actions](https://github.com/not-xly/talkable/actions) (piden login y caducan).
@@ -99,7 +99,7 @@ tauri build          # genera .exe / .AppImage / .deb en target/release/bundle
 Ya funciona:
 
 - Atajo global en los tres sistemas, con modo mantener y modo toque.
-- macOS: transcripción en el dispositivo (Apple Speech), panel flotante en vivo, auto-escritura con fallback al portapapeles, preferencias y guía inicial. Idiomas: es-AR, es-ES, es-MX, es-CO, es-CL, en-US, pt-BR.
+- macOS: transcripción en el dispositivo (Apple Speech), panel flotante en vivo, auto-escritura con fallback al portapapeles, preferencias y guía inicial. Idiomas: en-US, es-AR, es-ES, es-MX, es-CO, es-CL, pt-BR, fr-FR, it-IT.
 - Windows y Linux: transcripción local con whisper.cpp, pulido opcional con Qwen3-0.6B, guía inicial con descarga de modelos.
 - Pulido con IA (opcional): un modelo chico corriendo en tu máquina arregla puntuación, tildes, mayúsculas y muletillas.
 

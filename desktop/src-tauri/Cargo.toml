@@ -1,6 +1,6 @@
 [package]
 name = "talkable"
-version = "0.1.0"
+version = "0.2.0"
 description = "Free, private, local voice dictation"
 edition = "2021"
 

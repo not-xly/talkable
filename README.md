@@ -41,8 +41,8 @@ Grab the files from the [latest release](https://github.com/not-xly/talkable/rel
 
 | Platform | File |
 |---|---|
-| Windows (x64) | `Talkable_0.1.0_x64-setup.exe` (NSIS installer) |
-| Linux (x86_64) | `Talkable_0.1.0_amd64.AppImage` (portable, ~84 MB) or `Talkable_0.1.0_amd64.deb` (~7 MB + system packages) |
+| Windows (x64) | `Talkable_0.2.0_x64-setup.exe` (NSIS installer) |
+| Linux (x86_64) | `Talkable_0.2.0_amd64.AppImage` (portable, ~84 MB) or `Talkable_0.2.0_amd64.deb` (~7 MB + system packages) |
 | macOS | `Talkable-macOS.zip` (contains `Talkable.app`) |
 
 Bleeding-edge builds from every push are also in [Actions](https://github.com/not-xly/talkable/actions) artifacts (login required, they expire).
@@ -99,7 +99,7 @@ tauri build          # produces .exe / .AppImage / .deb under target/release/bun
 Already working:
 
 - Global hotkey on all three systems, hold and tap modes.
-- macOS: on-device transcription (Apple Speech), live floating panel, auto-typing with clipboard fallback, preferences and first-run guide. Languages: es-AR, es-ES, es-MX, es-CO, es-CL, en-US, pt-BR.
+- macOS: on-device transcription (Apple Speech), live floating panel, auto-typing with clipboard fallback, preferences and first-run guide. Languages: en-US, es-AR, es-ES, es-MX, es-CO, es-CL, pt-BR, fr-FR, it-IT.
 - Windows & Linux: local transcription with whisper.cpp, optional polish with Qwen3-0.6B, first-run guide with model downloads.
 - AI polish (optional): a small model running on your machine fixes punctuation, accents, capitalization and filler words.
 

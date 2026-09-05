@@ -22,6 +22,7 @@ Windows & Linux (Tauri v2 app):
 
 ## v0.2.0 — next
 
+- [x] Transcription languages: English, Spanish, French, Portuguese, Italian (all three platforms)
 - [ ] Configurable hotkey (UI picker)
 - [ ] Spoken commands ("new line", "delete that")
 - [ ] App exclusion list (never type into banking apps, etc.)

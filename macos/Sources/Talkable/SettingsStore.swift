@@ -25,7 +25,8 @@ final class SettingsStore: ObservableObject {
     private init() {
         let d = UserDefaults.standard
         let system = Locale.current.identifier.replacingOccurrences(of: "-", with: "_")
-        let fallback = system.hasPrefix("en") ? system : "en_US"
+        let supported = ["en", "es", "fr", "pt", "it"]
+        let fallback = supported.contains(where: system.hasPrefix) ? system : "en_US"
         localeID = d.string(forKey: "localeID") ?? fallback
         onDeviceOnly = d.object(forKey: "onDeviceOnly") as? Bool ?? true
         sound = d.object(forKey: "sound") as? Bool ?? true
@@ -41,5 +42,7 @@ final class SettingsStore: ObservableObject {
         ("es_CO", "Spanish (Colombia)"),
         ("es_CL", "Spanish (Chile)"),
         ("pt_BR", "Portuguese (Brazil)"),
+        ("fr_FR", "French (France)"),
+        ("it_IT", "Italian (Italy)"),
     ]
 }
