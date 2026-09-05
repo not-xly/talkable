@@ -1,0 +1,20 @@
+# Build artifacts
+.build/
+target/
+build/
+DerivedData/
+*.xcodeproj
+.swiftpm/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Models / large assets (downloaded at runtime, never committed)
+*.gguf
+*.mlx
+models/
+
+# Editor
+.vscode/
+.idea/

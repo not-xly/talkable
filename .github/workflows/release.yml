@@ -1,0 +1,92 @@
+name: release
+
+# Al pushear un tag v* (p. ej. v0.3.0): compila las 3 plataformas y publica
+# los binarios en una Release pública de GitHub (sin login, permanentes).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            bundles: "nsis"
+          - os: ubuntu-22.04
+            bundles: "appimage deb"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux deps
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            libasound2-dev libxtst-dev libxi-dev pkg-config cmake
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
+      - name: Build
+        working-directory: desktop/src-tauri
+        run: tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: |
+            desktop/src-tauri/target/release/bundle/**/*.exe
+            desktop/src-tauri/target/release/bundle/**/*.AppImage
+            desktop/src-tauri/target/release/bundle/**/*.deb
+          if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Talkable.app
+        working-directory: macos
+        run: ./scripts/make_app.sh
+
+      - name: Zip app
+        run: ditto -c -k --sequesterRsrc --keepParent macos/build/Talkable.app Talkable-macOS.zip
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: Talkable-macOS.zip
+          if-no-files-found: error
+
+  publish:
+    needs: [build, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Flatten files
+        # Los artefactos de win/linux llegan con subcarpetas (bundle/nsis/...);
+        # softprops solo sube `dist/*` (no recursivo), así que se aplana.
+        run: find dist -mindepth 2 -type f -exec mv -t dist {} + && find dist -type f
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

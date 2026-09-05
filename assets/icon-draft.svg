@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Talkable icon draft: tilted desk microphone -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b2f3a"/>
+      <stop offset="1" stop-color="#171a21"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4f6fb"/>
+      <stop offset="1" stop-color="#c9cfdd"/>
+    </linearGradient>
+  </defs>
+
+  <!-- rounded square background -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+
+  <!-- tilted desk mic -->
+  <g transform="rotate(24 512 512)">
+    <!-- capsule head -->
+    <rect x="402" y="150" width="220" height="330" rx="110" fill="url(#body)"/>
+    <!-- grille lines -->
+    <g stroke="#8a90a3" stroke-width="14" stroke-linecap="round" opacity="0.85">
+      <line x1="452" y1="210" x2="572" y2="210"/>
+      <line x1="440" y1="265" x2="584" y2="265"/>
+      <line x1="440" y1="320" x2="584" y2="320"/>
+      <line x1="452" y1="375" x2="572" y2="375"/>
+    </g>
+    <!-- neck ring -->
+    <rect x="432" y="470" width="160" height="46" rx="23" fill="#e05a4e"/>
+    <!-- stem -->
+    <path d="M492 516 L492 700 Q492 760 540 780 L640 810" stroke="url(#body)" stroke-width="40" fill="none" stroke-linecap="round"/>
+    <!-- base -->
+    <path d="M380 830 Q400 800 470 792 L700 792 Q760 800 776 830 Z" fill="url(#body)"/>
+  </g>
+
+  <!-- sound waves -->
+  <g stroke="#e05a4e" stroke-width="26" stroke-linecap="round" fill="none" opacity="0.9">
+    <path d="M760 300 q60 60 0 130"/>
+    <path d="M830 250 q95 105 0 230"/>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+{
+  "identifier": "default",
+  "description": "Base permissions for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister"
+  ]
+}
