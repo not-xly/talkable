@@ -1,7 +1,7 @@
 {
   "identifier": "default",
-  "description": "Base permissions for the main window",
-  "windows": ["main"],
+  "description": "Base permissions for the main window and the floating overlay",
+  "windows": ["main", "hud"],
   "permissions": [
     "core:default",
     "core:event:default",

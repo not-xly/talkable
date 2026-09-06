@@ -1,6 +1,6 @@
 [package]
 name = "talkable"
-version = "0.2.0"
+version = "0.3.0"
 description = "Free, private, local voice dictation"
 edition = "2021"
 
@@ -8,7 +8,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-global-shortcut = "2"
 rdev = "0.5"
 serde = { version = "1", features = ["derive"] }

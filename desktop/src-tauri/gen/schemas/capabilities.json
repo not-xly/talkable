@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Base permissions for the main window","local":true,"windows":["main"],"permissions":["core:default","core:event:default","global-shortcut:allow-register","global-shortcut:allow-unregister"]}}
+{"default":{"identifier":"default","description":"Base permissions for the main window and the floating overlay","local":true,"windows":["main","hud"],"permissions":["core:default","core:event:default","global-shortcut:allow-register","global-shortcut:allow-unregister"]}}

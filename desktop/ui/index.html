@@ -4,64 +4,146 @@
 <meta charset="utf-8" />
 <title>Talkable</title>
 <style>
-  :root { color-scheme: light; }
+  /* Design language: xlyUI palette + type. */
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --text: #37352f;
+    --text-2: #787774;
+    --placeholder: #b9b7b2;
+    --border: #e9e9e7;
+    --hover: rgba(55, 53, 47, 0.06);
+    --active: rgba(55, 53, 47, 0.09);
+    --accent: #2383e2;
+    --accent-soft: rgba(35, 131, 226, 0.14);
+    --accent-hover: #1e73c6;
+    --danger: #e03e3e;
+    --danger-soft: rgba(224, 62, 62, 0.1);
+    --danger-hover: #c93636;
+    --warn-bg: #fbf3db;
+    --warn-text: #5f4c1d;
+    --warn-border: #f0e2b6;
+    --dark: #37352f;
+    --dark-hover: #000000;
+    color-scheme: light;
+  }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: #f4f5f7; color: #1c1e24; padding: 20px;
+    margin: 0; padding: 24px;
+    background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Helvetica, "Apple Color Emoji", Arial, sans-serif;
+    font-size: 16px; line-height: 1.5;
   }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .sub { color: #6b7080; font-size: 13px; margin-bottom: 18px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--text-2); font-size: 14px; margin-top: 2px; }
   .card {
-    background: #fff; border-radius: 12px; padding: 14px 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-top: 14px;
   }
-  .card h2 { font-size: 14px; margin: 0 0 6px; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  button {
-    border: 0; border-radius: 8px; padding: 8px 14px; font-size: 13px;
-    background: #e05a4e; color: #fff; cursor: pointer;
-  }
-  button:disabled { background: #b8bcc8; cursor: default; }
-  button.ghost { background: #2b2f3a; }
-  .status {
-    border-left: 4px solid #2b2f3a; padding: 10px 12px; background: #fff;
-    border-radius: 8px; min-height: 54px; font-size: 13px; white-space: pre-wrap;
-  }
-  .status.ok { border-color: #2e9e5b; }
-  .status.err { border-color: #e05a4e; }
-  .bar { height: 8px; background: #e4e6ec; border-radius: 4px; overflow: hidden; margin-top: 8px; }
-  .bar > div { height: 100%; width: 0; background: #e05a4e; transition: width .2s; }
-  label.switch { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-  select { padding: 6px 8px; border-radius: 8px; border: 1px solid #d5d8e0; }
-  .hint { font-size: 12px; color: #6b7080; margin-top: 6px; }
-  .ready { color: #2e9e5b; font-weight: 600; }
-  .missing { color: #e0884e; font-weight: 600; }
+  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 10px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .muted { color: var(--text-2); font-size: 13px; }
+  small { color: var(--text-2); }
 
-  /* ---- onboarding ---- */
+  button {
+    border: 0; border-radius: 8px; padding: 7px 14px;
+    font-size: 14px; font-family: inherit; cursor: pointer;
+    background: var(--dark); color: #fff;
+  }
+  button:hover:not(:disabled) { background: var(--dark-hover); }
+  button:disabled { background: var(--placeholder); cursor: default; }
+  button.ghost {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border);
+  }
+  button.ghost:hover:not(:disabled) { background: var(--hover); }
+  button.link {
+    background: transparent; color: var(--accent);
+    padding: 4px 6px;
+  }
+  button.link:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-hover); }
+
+  /* Chips: Required / Optional tags. */
+  .chip {
+    display: inline-block; border-radius: 5px; padding: 1px 8px;
+    font-size: 12px; font-weight: 600; vertical-align: 1px;
+  }
+  .chip.required { background: var(--accent-soft); color: var(--accent); }
+  .chip.optional { background: var(--hover); color: var(--text-2); }
+
+  .status {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; min-height: 56px; font-size: 14px;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .status.ok { border-color: var(--accent); background: var(--accent-soft); }
+  .status.err { border-color: var(--danger); background: var(--danger-soft); }
+
+  .barwrap { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 10px; display: none; }
+  .barwrap.on { display: block; }
+  .barwrap > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+  .hint { font-size: 13px; color: var(--text-2); margin-top: 8px; }
+  .ready { color: var(--accent); font-weight: 600; }
+  .missing { color: var(--text-2); font-weight: 600; }
+  .modelrow { padding: 8px 0; }
+  .modelrow + .modelrow { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 14px; }
+
+  select {
+    padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit;
+  }
+  select:hover { background: var(--hover); }
+  label.switch { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+  /* Warning banner shown when the required model is missing. */
+  .banner {
+    display: none;
+    background: var(--warn-bg); color: var(--warn-text);
+    border: 1px solid var(--warn-border); border-radius: 10px;
+    padding: 12px 14px; margin-top: 14px; font-size: 14px;
+  }
+  .banner.on { display: block; }
+  .banner .row { margin-top: 8px; }
+  .banner button { background: var(--warn-text); font-size: 13px; padding: 5px 12px; }
+
+  /* ---- Onboarding (first-run setup) ---- */
   #onboarding {
-    position: fixed; inset: 0; background: #f4f5f7; z-index: 50;
-    display: flex; flex-direction: column; padding: 28px;
+    position: fixed; inset: 0; background: var(--bg); z-index: 50;
+    display: none; flex-direction: column; padding: 28px;
   }
-  #onboarding.hidden, .step.hidden { display: none; }
-  .dots { display: flex; gap: 8px; justify-content: center; margin-bottom: 24px; }
-  .dots span { width: 10px; height: 10px; border-radius: 50%; background: #d5d8e0; }
-  .dots span.on { background: #e05a4e; }
+  #onboarding.on { display: flex; }
+  .hidden { display: none; }
+  /* .step sets display:flex; this must win over it. */
+  .step.hidden { display: none; }
+  .steps { display: flex; gap: 8px; justify-content: center; margin-bottom: 26px; }
+  .steps span { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+  .steps span.on { background: var(--accent); }
   .step { flex: 1; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
-  .step h2 { margin: 0; font-size: 22px; }
-  .step p { font-size: 14px; line-height: 1.5; margin: 0; }
-  .step .box { background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-  .nav { display: flex; justify-content: space-between; margin-top: 18px; }
-  .keycap {
-    display: inline-block; border: 2px solid #2b2f3a; border-radius: 10px;
-    padding: 10px 22px; font-size: 18px; font-weight: 700; background: #fff;
+  .step h2 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+  .step p { font-size: 15px; margin: 0; }
+  .step .box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px;
   }
+  .nav { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; gap: 10px; }
+  .nav .spacer { flex: 1; }
+  #obGate { color: var(--text-2); font-size: 13px; text-align: right; }
+  .keycap {
+    display: inline-block; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 24px; font-size: 18px; font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--surface); box-shadow: 0 1px 0 var(--border);
+  }
+  .center { text-align: center; }
 </style>
 </head>
 <body>
   <!-- ============ ONBOARDING (first run) ============ -->
-  <div id="onboarding" class="hidden">
-    <div class="dots">
+  <div id="onboarding">
+    <div class="steps">
       <span id="p0" class="on"></span><span id="p1"></span><span id="p2"></span><span id="p3"></span>
     </div>
 
@@ -69,37 +151,42 @@
       <h2>Hi! I'm Talkable</h2>
       <p>Hold the dictation key, speak, release — and the text gets typed wherever your cursor is, in any app.</p>
       <p>Everything runs <b>on your computer</b>: neither your audio nor your text ever leaves it. No accounts, no cloud, no limits.</p>
-      <p style="color:#6b7080">Before we start, here's how model downloads work and which key you'll use.</p>
+      <p class="muted">Next: one required model to install, and the key you'll use.</p>
     </div>
 
     <div id="ob1" class="step hidden">
       <h2>Local models</h2>
-      <p>Talkable uses two models that run <b>on your machine</b>. They download once and work offline forever after:</p>
+      <p>Both run <b>on your machine</b>. They download once and work offline forever after.</p>
       <div class="box">
         <div class="row">
-          <div><b>Whisper base</b> — transcription <small>(~145 MB)</small><br>
-            <span id="obWhisperState" class="missing">missing</span></div>
+          <div>
+            <b>Transcription</b> <span class="chip required">Required</span> <small>(~145 MB)</small><br>
+            <span class="muted">Turns your voice into text. Talkable can't transcribe without it.</span><br>
+            <span id="obWhisperState" class="missing">Not installed</span>
+          </div>
           <button id="obDlWhisper">Download</button>
         </div>
-        <div class="bar"><div id="obBarWhisper"></div></div>
+        <div class="barwrap" id="obBarWhisperWrap"><div id="obBarWhisper"></div></div>
       </div>
       <div class="box">
         <div class="row">
-          <div><b>Qwen3-0.6B</b> — AI polish: punctuation, accents, fillers <small>(~400 MB)</small><br>
-            <span id="obQwenState" class="missing">missing</span></div>
+          <div>
+            <b>AI polish</b> <span class="chip optional">Optional</span> <small>(~400 MB)</small><br>
+            <span class="muted">Fixes punctuation, accents and filler words. You can skip it or add it later.</span><br>
+            <span id="obQwenState" class="missing">Not installed</span>
+          </div>
           <button id="obDlQwen">Download</button>
         </div>
-        <div class="bar"><div id="obBarQwen"></div></div>
+        <div class="barwrap" id="obBarQwenWrap"><div id="obBarQwen"></div></div>
       </div>
-      <p style="color:#6b7080">Download them now or later from the main screen. Without Whisper there's no transcription; without Qwen the raw text gets pasted.</p>
     </div>
 
     <div id="ob2" class="step hidden">
       <h2>Your dictation key</h2>
-      <p style="text-align:center"><span class="keycap" id="obKey">…</span></p>
+      <p class="center"><span class="keycap" id="obKey">…</span></p>
       <p>• <b>Hold it down</b>, speak, release: the text types itself.</p>
       <p>• <b>Quick tap</b>: start dictating; tap again to paste.</p>
-      <p style="color:#6b7080">Put your cursor anywhere and try it right now if you want.</p>
+      <p class="muted">Put your cursor anywhere and try it right now if you want.</p>
     </div>
 
     <div id="ob3" class="step hidden">
@@ -108,12 +195,13 @@
       <p>• Dictate with your key, and the text lands in the app you're using.<br>
          • Turn AI polish on/off and change language whenever you want.<br>
          • If a model is missing, download it from the main screen.</p>
-      <p style="color:#6b7080">Thanks for using local, private, free software.</p>
+      <p class="muted">Thanks for using local, private, free software.</p>
     </div>
 
     <div class="nav">
       <button id="obBack" class="ghost hidden">Back</button>
-      <span></span>
+      <span class="spacer"></span>
+      <span id="obGate"></span>
       <button id="obNext">Get started</button>
     </div>
   </div>
@@ -122,12 +210,21 @@
   <h1>Talkable</h1>
   <div class="sub">Local voice dictation — free, private, no cloud.</div>
 
+  <div class="banner" id="whisperBanner">
+    <b>Talkable can't transcribe yet.</b>
+    <div>The required transcription model isn't installed on this computer.</div>
+    <div class="row">
+      <button id="bannerDl">Download now (~145 MB)</button>
+      <span id="bannerPct" class="muted"></span>
+    </div>
+  </div>
+
   <div class="card">
     <h2>Status</h2>
     <div id="status" class="status">Hold the dictation key, speak, release.</div>
-    <div class="row" style="margin-top:10px">
-      <button id="btnDictate">Dictate (click)</button>
-      <span class="hint" id="hotkeyHint"></span>
+    <div class="row" style="margin-top:12px">
+      <button id="btnDictate">Dictate</button>
+      <span class="muted" id="hotkeyHint"></span>
     </div>
     <div class="hint">If the global hotkey doesn't work (e.g. on Wayland), use the button: click to start, click to paste.</div>
   </div>
@@ -146,30 +243,38 @@
         </select>
       </label>
       <label class="switch">
-        <input type="checkbox" id="polish" /> Polish with local AI
+        <input type="checkbox" id="polish" /> AI polish <span class="chip optional">Optional</span>
       </label>
     </div>
-    <div class="hint">Polishing uses Qwen3-0.6B on your computer. If it's off or the model is missing, the raw text gets pasted.</div>
+    <div class="hint">AI polish fixes punctuation, accents and fillers on your computer. If it's off or its model is missing, the raw text gets pasted.</div>
   </div>
 
   <div class="card">
-    <h2>Local models <span id="whisperState" class="missing">(missing)</span> <span id="qwenState" class="missing">(missing)</span></h2>
-    <div class="row">
-      <div>Whisper base — transcription <small>(~145 MB)</small></div>
-      <button id="dlWhisper">Download</button>
+    <h2>Local models</h2>
+    <div class="modelrow">
+      <div class="row">
+        <div>
+          <b>Transcription</b> <span class="chip required">Required</span> <small>(~145 MB)</small><br>
+          <span id="whisperState" class="missing">Not installed</span>
+        </div>
+        <button id="dlWhisper">Download</button>
+      </div>
+      <div class="barwrap" id="barWhisperWrap"><div id="barWhisper"></div></div>
     </div>
-    <div class="bar" id="barWhisperWrap"><div id="barWhisper"></div></div>
-    <div class="row" style="margin-top:10px">
-      <div>Qwen3-0.6B — AI polish <small>(~400 MB)</small></div>
-      <button id="dlQwen">Download</button>
+    <div class="modelrow">
+      <div class="row">
+        <div>
+          <b>AI polish</b> <span class="chip optional">Optional</span> <small>(~400 MB)</small><br>
+          <span id="qwenState" class="missing">Not installed</span>
+        </div>
+        <button id="dlQwen">Download</button>
+      </div>
+      <div class="barwrap" id="barQwenWrap"><div id="barQwen"></div></div>
     </div>
-    <div class="bar" id="barQwenWrap"><div id="barQwen"></div></div>
   </div>
 
-  <div style="text-align:center">
-    <button class="ghost" id="btnOnboarding" style="font-size:12px;background:transparent;color:#6b7080">
-      Show the setup guide again
-    </button>
+  <div style="text-align:center; margin-top:16px">
+    <button class="link" id="btnOnboarding">Show the setup guide again</button>
   </div>
 
 <script>
@@ -178,8 +283,19 @@ const { listen } = window.__TAURI__.event;
 const $ = id => document.getElementById(id);
 let inOnboarding = false;
 let onboardingStep = 0;
+let whisperReady = false;
+let qwenReady = false;
+let downloading = new Set();
 
 /* ---------- onboarding ---------- */
+function gateStep() {
+  // The transcription model is required; AI polish is optional.
+  const blocked = onboardingStep === 1 && !whisperReady;
+  $("obNext").disabled = blocked;
+  $("obGate").textContent = blocked
+    ? "The transcription model is required to continue."
+    : "";
+}
 function showStep(n) {
   onboardingStep = n;
   for (let i = 0; i < 4; i++) {
@@ -187,11 +303,12 @@ function showStep(n) {
     $("p" + i).classList.toggle("on", i <= n);
   }
   $("obBack").classList.toggle("hidden", n === 0);
-  $("obNext").textContent = n === 3 ? "Done!" : n === 0 ? "Get started" : "Next";
+  $("obNext").textContent = n === 3 ? "Finish setup" : n === 0 ? "Get started" : "Next";
+  gateStep();
 }
 function openOnboarding() {
   inOnboarding = true;
-  $("onboarding").classList.remove("hidden");
+  $("onboarding").classList.add("on");
   showStep(0);
   refresh();
 }
@@ -199,37 +316,89 @@ $("obNext").addEventListener("click", async () => {
   if (onboardingStep < 3) {
     showStep(onboardingStep + 1);
   } else {
-    await invoke("set_onboarding_done");
-    inOnboarding = false;
-    $("onboarding").classList.add("hidden");
+    try {
+      // Backend double-checks that the required model is really installed.
+      await invoke("set_onboarding_done");
+      inOnboarding = false;
+      $("onboarding").classList.remove("on");
+      refresh();
+    } catch (e) {
+      $("obGate").textContent = String(e);
+    }
   }
 });
 $("obBack").addEventListener("click", () => showStep(Math.max(0, onboardingStep - 1)));
 $("btnOnboarding").addEventListener("click", openOnboarding);
-$("obDlWhisper").addEventListener("click", () => invoke("download_model", { which: "whisper" }).then(refresh).catch(alert));
-$("obDlQwen").addEventListener("click", () => invoke("download_model", { which: "qwen" }).then(refresh).catch(alert));
+
+/* ---------- downloads ---------- */
+function startDownload(which) {
+  if (downloading.has(which)) return;
+  downloading.add(which);
+  const wrapId = which === "whisper" ? "barWhisperWrap" : "barQwenWrap";
+  const barId = which === "whisper" ? "barWhisper" : "barQwen";
+  $(wrapId).classList.add("on");
+  $(barId).style.width = "0";
+  updateDownloadButtons();
+  invoke("download_model", { which })
+    .catch(e => setStatus("err", "Couldn't start the download: " + e))
+    .finally(() => {
+      downloading.delete(which);
+      $(wrapId).classList.remove("on");
+      $(barId).style.width = "0";
+      updateDownloadButtons();
+      refresh();
+    });
+}
+function updateDownloadButtons() {
+  const disW = whisperReady || downloading.has("whisper");
+  const disQ = qwenReady || downloading.has("qwen");
+  $("dlWhisper").disabled = disW;
+  $("obDlWhisper").disabled = disW;
+  $("bannerDl").disabled = whisperReady || downloading.has("whisper");
+  $("dlQwen").disabled = disQ;
+  $("obDlQwen").disabled = disQ;
+  $("dlWhisper").textContent = downloading.has("whisper") ? "Downloading…" : whisperReady ? "Installed" : "Download";
+  $("obDlWhisper").textContent = $("dlWhisper").textContent;
+  $("dlQwen").textContent = downloading.has("qwen") ? "Downloading…" : qwenReady ? "Installed" : "Download";
+  $("obDlQwen").textContent = $("dlQwen").textContent;
+}
+$("dlWhisper").addEventListener("click", () => startDownload("whisper"));
+$("obDlWhisper").addEventListener("click", () => startDownload("whisper"));
+$("bannerDl").addEventListener("click", () => startDownload("whisper"));
+$("dlQwen").addEventListener("click", () => startDownload("qwen"));
+$("obDlQwen").addEventListener("click", () => startDownload("qwen"));
 
 /* ---------- main ---------- */
+function setStatus(kind, message) {
+  const el = $("status");
+  el.className = kind === "ok" ? "status ok" : kind === "err" ? "status err" : "status";
+  el.textContent = message;
+}
+
 async function refresh() {
-  const s = await invoke("get_state");
-  $("whisperState").textContent = s.whisperReady ? "✓ ready" : "(missing)";
-  $("whisperState").className = s.whisperReady ? "ready" : "missing";
-  $("qwenState").textContent = s.qwenReady ? "✓ ready" : "(missing)";
-  $("qwenState").className = s.qwenReady ? "ready" : "missing";
+  let s;
+  try {
+    s = await invoke("get_state");
+  } catch (e) {
+    return; // window closing or backend restarting; try again on next event
+  }
+  whisperReady = s.whisperReady;
+  qwenReady = s.qwenReady;
+  $("whisperState").textContent = whisperReady ? "Installed — ready" : "Not installed";
+  $("whisperState").className = whisperReady ? "ready" : "missing";
+  $("qwenState").textContent = qwenReady ? "Installed — ready" : "Not installed";
+  $("qwenState").className = qwenReady ? "ready" : "missing";
+  $("obWhisperState").textContent = whisperReady ? "Installed — ready" : "Not installed";
+  $("obWhisperState").className = whisperReady ? "ready" : "missing";
+  $("obQwenState").textContent = qwenReady ? "Installed — ready" : "Not installed";
+  $("obQwenState").className = qwenReady ? "ready" : "missing";
   $("lang").value = s.config.language;
   $("polish").checked = s.config.polish;
-  $("dlWhisper").disabled = s.whisperReady;
-  $("dlQwen").disabled = s.qwenReady;
-  $("obWhisperState").textContent = s.whisperReady ? "✓ ready" : "missing";
-  $("obWhisperState").className = s.whisperReady ? "ready" : "missing";
-  $("obQwenState").textContent = s.qwenReady ? "✓ ready" : "missing";
-  $("obQwenState").className = s.qwenReady ? "ready" : "missing";
-  $("dlWhisper").disabled = s.whisperReady;
-  $("dlQwen").disabled = s.qwenReady;
-  $("obDlWhisper").disabled = s.whisperReady;
-  $("obDlQwen").disabled = s.qwenReady;
+  $("whisperBanner").classList.toggle("on", !whisperReady);
   $("obKey").textContent = s.hotkey || "not registered (use the Dictate button)";
   $("hotkeyHint").textContent = s.hotkey ? ("Key: " + s.hotkey) : "Hotkey not registered: use the Dictate button";
+  updateDownloadButtons();
+  gateStep();
   if (!s.config.onboarding_done && !inOnboarding) openOnboarding();
 }
 
@@ -239,43 +408,49 @@ $("lang").addEventListener("change", async () => {
 $("polish").addEventListener("change", async () => {
   await invoke("set_config", { language: $("lang").value, polish: $("polish").checked });
 });
-$("dlWhisper").addEventListener("click", () => invoke("download_model", { which: "whisper" }).then(refresh).catch(alert));
-$("dlQwen").addEventListener("click", () => invoke("download_model", { which: "qwen" }).then(refresh).catch(alert));
-$("btnDictate").addEventListener("click", () => invoke("toggle_dictation").catch(alert));
+$("btnDictate").addEventListener("click", () => invoke("toggle_dictation").catch(e => setStatus("err", String(e))));
+
+function barFor(label) {
+  const inOb = inOnboarding;
+  if (label.startsWith("AI polish")) {
+    return inOb ? $("obBarQwen") : $("barQwen");
+  }
+  return inOb ? $("obBarWhisper") : $("barWhisper");
+}
 
 listen("talkable-status", ({ payload }) => {
-  const el = $("status");
-  el.className = "status";
   switch (payload.stage) {
-    case "recording":    el.innerHTML = "Recording… (release the key or click Dictate again)"; break;
-    case "transcribing": el.innerHTML = "Transcribing…"; break;
-    case "polishing":    el.innerHTML = "Polishing with local AI…"; break;
+    case "recording":    setStatus("", "Recording… (release the key or click Dictate again)"); break;
+    case "transcribing": setStatus("", "Transcribing…"); break;
+    case "polishing":    setStatus("", "Polishing with local AI…"); break;
     case "done":
-      el.className = "status ok";
-      el.innerHTML = "Done: " + (payload.text || "");
-      if (payload.detail) el.innerHTML += "\n(" + payload.detail + ")";
+      setStatus("ok", payload.detail ? payload.text + "\n(" + payload.detail + ")" : payload.text || "Done");
       break;
     case "error":
-      el.className = "status err";
-      el.innerHTML = "Notice: " + (payload.detail || "Error");
+      setStatus("err", payload.detail || "Error");
       break;
-    case "download-start":   el.innerHTML = "Downloading " + payload.detail + "…"; break;
+    case "download-start":
+      downloading.add(payload.detail === "AI polish model" ? "qwen" : "whisper");
+      updateDownloadButtons();
+      setStatus("", "Downloading " + payload.detail + "…");
+      break;
     case "download-progress": {
       const [label, pct] = payload.detail.split("|");
-      const bar = label.includes("Qwen")
-        ? (enOnboarding ? $("obBarQwen") : $("barQwen"))
-        : (enOnboarding ? $("obBarWhisper") : $("barWhisper"));
+      const bar = barFor(label);
+      bar.parentElement.classList.add("on");
       bar.style.width = pct + "%";
-      el.innerHTML = "Downloading " + label + " — " + pct + "%";
-      if (pct === "100") refresh();
+      setStatus("", "Downloading " + label + " — " + pct + "%");
+      if (label.startsWith("transcription")) $("bannerPct").textContent = pct + "%";
       break;
     }
-    case "download-done": refresh(); el.innerHTML = "Model downloaded."; break;
+    case "download-done":
+      setStatus("ok", "Model downloaded.");
+      refresh();
+      break;
     case "download-error": {
-      el.className = "status err";
       const parts = (payload.detail || "").split("|");
       const label = parts.shift() || "model";
-      el.innerHTML = "Couldn't download " + label + ": " + (parts.join("|") || "error");
+      setStatus("err", "Couldn't download " + label + ": " + (parts.join("|") || "error"));
       break;
     }
   }

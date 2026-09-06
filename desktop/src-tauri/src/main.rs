@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+mod hud;
 mod models;
 mod polish;
 mod stt;
@@ -41,6 +42,7 @@ fn emit(app: &AppHandle, stage: &str, text: Option<&str>, detail: Option<&str>) 
             detail: detail.map(|s| s.into()),
         },
     );
+    hud::update(app, stage, text, detail);
 }
 
 fn on_press(app: &AppHandle) {
@@ -123,17 +125,17 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
         if !recorder.keep_going().load(Ordering::SeqCst) {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(25));
+        std::thread::sleep(Duration::from_millis(25));
     }
 
     let samples = recorder.stop();
-    emit(&app, "transcribing", None, None);
 
     if samples.len() < 1_600 {
         state.recording.store(false, Ordering::SeqCst);
         emit(&app, "error", None, Some("Didn't hear anything."));
         return;
     }
+    emit(&app, "transcribing", None, None);
 
     let (language, polish_on) = {
         let cfg = state.config.lock().unwrap();
@@ -148,7 +150,7 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
             &app,
             "error",
             None,
-            Some("Missing whisper model: download it from the Talkable window."),
+            Some("Missing transcription model: install it from the Talkable window."),
         );
         return;
     }
@@ -166,7 +168,8 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
         return;
     }
 
-    // 2) Optional local polish with Qwen3
+    // 2) Optional local polish with a small language model.
+    let mut polish_note: Option<String> = None;
     let final_text = if polish_on {
         let qpath = models::qwen_model_path();
         if qpath.exists() {
@@ -176,6 +179,9 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
                 Err(_) => raw.clone(),
             }
         } else {
+            polish_note = Some(
+                "AI polish is on but its model isn't downloaded — pasted the raw text.".to_string(),
+            );
             raw.clone()
         }
     } else {
@@ -198,7 +204,7 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
     }
 
     state.recording.store(false, Ordering::SeqCst);
-    emit(&app, "done", Some(&final_text), None);
+    emit(&app, "done", Some(&final_text), polish_note.as_deref());
 }
 
 /// Toggles dictation from the UI (click). It's the fallback for Wayland,
@@ -221,10 +227,11 @@ fn get_state(app: AppHandle) -> serde_json::Value {
         .try_state::<DictState>()
         .map(|s| s.hotkey.lock().unwrap().clone())
         .unwrap_or_default();
+    let config = models::load_config();
     serde_json::json!({
         "whisperReady": models::whisper_model_path().exists(),
         "qwenReady": models::qwen_model_path().exists(),
-        "config": models::load_config(),
+        "config": config,
         "hotkey": hotkey,
     })
 }
@@ -238,36 +245,62 @@ fn set_config(app: AppHandle, language: String, polish: bool) {
     // Dictation reads the in-memory config: update it here, otherwise the
     // change doesn't take effect until the app restarts.
     if let Some(state) = app.try_state::<DictState>() {
-        *state.config.lock().unwrap() = cfg;
+        *state.config.lock().unwrap() = cfg.clone();
+    }
+    // Turning polish on is the moment to have the model ready in advance.
+    if polish {
+        polish::prewarm(&models::qwen_model_path());
     }
 }
 
+/// Setup can only be marked complete with the transcription model actually
+/// installed on disk (AI polish is optional and not checked here).
 #[tauri::command]
-fn set_onboarding_done() {
+fn set_onboarding_done() -> Result<(), String> {
+    if !models::whisper_model_path().exists() {
+        return Err(
+            "The transcription model is required: download it before finishing setup.".into(),
+        );
+    }
     let mut cfg = models::load_config();
     cfg.onboarding_done = true;
     models::save_config(&cfg);
+    Ok(())
 }
 
 /// Models currently downloading (prevents double-clicks and .tmp corruption).
 static DOWNLOADING: std::sync::LazyLock<Mutex<HashSet<String>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashSet::new()));
 
+static DOWNLOAD_CLIENT: std::sync::LazyLock<reqwest::blocking::Client> =
+    std::sync::LazyLock::new(|| {
+        reqwest::blocking::Client::builder()
+            .connect_timeout(Duration::from_secs(15))
+            .build()
+            .expect("download client")
+        // No total timeout: model files are large. Stalls are detected in
+        // the read loop instead (see download_model).
+    });
+
 /// Starts the download on a detached thread and returns right away (never
 /// blocks Tauri's async runtime). Progress and results arrive as events:
 /// `download-start` / `download-progress` / `download-done` / `download-error`.
 #[tauri::command]
 fn download_model(app: AppHandle, which: String) -> Result<(), String> {
-    let (url, dest, label): (&'static str, std::path::PathBuf, &'static str) =
-        match which.as_str() {
-            "whisper" => (
-                models::WHISPER_URL,
-                models::whisper_model_path(),
-                "whisper (base)",
-            ),
-            "qwen" => (models::QWEN_URL, models::qwen_model_path(), "Qwen3-0.6B"),
-            _ => return Err("Unknown model".into()),
-        };
+    let (url, dest, label): (&'static str, std::path::PathBuf, &'static str) = match which.as_str()
+    {
+        "whisper" => (
+            models::WHISPER_URL,
+            models::whisper_model_path(),
+            "transcription model",
+        ),
+        "qwen" => (
+            models::QWEN_URL,
+            models::qwen_model_path(),
+            "AI polish model",
+        ),
+        _ => return Err("Unknown model".into()),
+    };
 
     {
         let mut set = DOWNLOADING.lock().map_err(|_| "Download lock")?;
@@ -283,7 +316,7 @@ fn download_model(app: AppHandle, which: String) -> Result<(), String> {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
             let tmp = dest.with_extension("downloading");
-            let resp = reqwest::blocking::get(url).map_err(|e| e.to_string())?;
+            let resp = DOWNLOAD_CLIENT.get(url).send().map_err(|e| e.to_string())?;
             if !resp.status().is_success() {
                 return Err(format!("Download failed: {}", resp.status()));
             }
@@ -292,8 +325,8 @@ fn download_model(app: AppHandle, which: String) -> Result<(), String> {
             use std::io::Write;
             let mut bytes: u64 = 0;
             let mut reader = resp;
-            // chunked read
             let mut last_pct = 100u64;
+            let mut last_progress = Instant::now();
             loop {
                 use std::io::Read;
                 let mut buf = [0u8; 256 * 1024];
@@ -301,13 +334,22 @@ fn download_model(app: AppHandle, which: String) -> Result<(), String> {
                 if n == 0 {
                     break;
                 }
+                // Abort if the connection stalls with no data coming in.
+                if last_progress.elapsed() > Duration::from_secs(45) {
+                    return Err("Download stalled (no data for 45 s)".into());
+                }
                 file.write_all(&buf[..n]).map_err(|e| e.to_string())?;
                 bytes += n as u64;
-                if total > 0 {
-                    let pct = bytes * 100 / total;
+                last_progress = Instant::now();
+                if let Some(pct) = bytes.checked_mul(100).and_then(|v| v.checked_div(total)) {
                     if pct != last_pct {
                         last_pct = pct;
-                        emit(&app, "download-progress", None, Some(&format!("{label}|{pct}")));
+                        emit(
+                            &app,
+                            "download-progress",
+                            None,
+                            Some(&format!("{label}|{pct}")),
+                        );
                     }
                 }
             }
@@ -318,10 +360,7 @@ fn download_model(app: AppHandle, which: String) -> Result<(), String> {
             Ok(())
         })();
 
-        DOWNLOADING
-            .lock()
-            .ok()
-            .map(|mut set| set.remove(&which));
+        DOWNLOADING.lock().ok().map(|mut set| set.remove(&which));
         if let Err(e) = result {
             let _ = std::fs::remove_file(dest.with_extension("downloading"));
             emit(&app, "download-error", None, Some(&format!("{label}|{e}")));
@@ -333,6 +372,7 @@ fn download_model(app: AppHandle, which: String) -> Result<(), String> {
 
 fn main() {
     let config = models::load_config();
+    let polish_at_start = config.polish;
 
     tauri::Builder::default()
         .manage(DictState {
@@ -341,9 +381,10 @@ fn main() {
             press_start: Mutex::new(None),
             last_stop: Mutex::new(None),
             stop_tx: Mutex::new(None),
-            config: Mutex::new(config),
+            config: Mutex::new(config.clone()),
             hotkey: Mutex::new(String::new()),
         })
+        .manage(hud::HudState::new())
         .plugin(
             ShortcutBuilder::new()
                 .with_handler(|app, _shortcut, event| match event.state() {
@@ -359,7 +400,7 @@ fn main() {
             download_model,
             toggle_dictation
         ])
-        .setup(|app| {
+        .setup(move |app| {
             // F6 as a fallback: works on X11, Wayland and Windows.
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
             let f6_ok = app.global_shortcut().register("f6").is_ok();
@@ -372,19 +413,14 @@ fn main() {
             } else {
                 "Right Ctrl"
             };
-            *app.state::<DictState>()
-                .hotkey
-                .lock()
-                .unwrap() = hotkey_label.to_string();
+            *app.state::<DictState>().hotkey.lock().unwrap() = hotkey_label.to_string();
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let hkeys = handle.clone();
                 let herr = handle.clone();
                 let res = rdev::listen(move |event| match event.event_type {
                     rdev::EventType::KeyPress(rdev::Key::ControlRight) => on_press(&hkeys),
-                    rdev::EventType::KeyRelease(rdev::Key::ControlRight) => {
-                        on_release(&hkeys)
-                    }
+                    rdev::EventType::KeyRelease(rdev::Key::ControlRight) => on_release(&hkeys),
                     _ => {}
                 });
                 if let Err(e) = res {
@@ -399,6 +435,14 @@ fn main() {
                     }
                 }
             });
+
+            // Have both models ready before the user dictates: without this
+            // the first dictation pays the full model-load wait.
+            stt::warm_up(&models::whisper_model_path());
+            if polish_at_start {
+                polish::prewarm(&models::qwen_model_path());
+            }
+            hud::init(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

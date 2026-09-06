@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Talkable</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; user-select: none; }
+  html, body {
+    margin: 0; width: 100%; height: 100%;
+    background: transparent; overflow: hidden;
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Helvetica, "Apple Color Emoji", Arial, sans-serif;
+  }
+  /* Toast-style pill: the app's dark button/toast color, white text. */
+  #pill {
+    display: flex; align-items: center; gap: 10px;
+    width: calc(100% - 8px); height: calc(100% - 8px);
+    margin: 4px; padding: 0 18px;
+    background: rgba(55, 53, 47, 0.92);
+    border-radius: 18px;
+    color: #ffffff; font-size: 15px; line-height: 1.3;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  }
+  #dot {
+    flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%;
+    background: #b9b7b2;
+  }
+  #text {
+    flex: 1 1 auto; overflow: hidden; white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .recording #dot { background: #ff5c5c; animation: pulse 1.2s ease-in-out infinite; }
+  .busy #dot { background: #2383e2; animation: pulse 1.2s ease-in-out infinite; }
+  .done #dot { background: #6bcf8e; }
+  .error #pill { background: rgba(201, 54, 54, 0.94); }
+  .error #dot { background: #ffd7d7; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+</style>
+</head>
+<body>
+  <div id="pill">
+    <span id="dot"></span>
+    <span id="text">Ready</span>
+  </div>
+<script>
+  const { listen } = window.__TAURI__.event;
+  const root = document.body;
+  const text = document.getElementById("text");
+
+  function setPill(kind, message) {
+    root.className = kind;
+    text.textContent = message;
+    text.title = message;
+  }
+
+  if (listen) {
+    listen("hud-update", ({ payload }) => setPill(payload.kind, payload.text));
+  }
+</script>
+</body>
+</html>
