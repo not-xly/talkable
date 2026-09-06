@@ -20,6 +20,11 @@ let package = Package(
                 .product(name: "Tokenizers", package: "swift-transformers")
             ],
             path: "Sources/Talkable"
+        ),
+        .testTarget(
+            name: "TalkableTests",
+            dependencies: ["Talkable"],
+            path: "Tests/TalkableTests"
         )
     ]
 )

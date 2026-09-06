@@ -71,17 +71,13 @@ final class AppState: ObservableObject {
     }
 
     private func prepareAndRecord() async {
-        let micOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
-            AVCaptureDevice.requestAccess(for: .audio) { c.resume(returning: $0) }
-        }
-        guard micOK else {
+        // Fast paths: already-granted permissions return immediately instead
+        // of paying a system round-trip before every dictation.
+        guard await SystemPermissions.microphone() else {
             fail("No microphone access. Grant it in Settings › Privacy & Security › Microphone.")
             return
         }
-        let speechOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
-            SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) }
-        }
-        guard speechOK else {
+        guard await SystemPermissions.speechRecognition() else {
             fail("No speech recognition permission. Check Settings › Privacy & Security › Speech Recognition.")
             return
         }
@@ -208,5 +204,27 @@ enum TextProcessor {
             s += "."
         }
         return s
+    }
+}
+
+/// Asks for (or confirms) the permissions transcription needs. Safe to call
+/// repeatedly: already-granted permissions return without a system prompt.
+enum SystemPermissions {
+    static func microphone() async -> Bool {
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
+            return true
+        }
+        return await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+            AVCaptureDevice.requestAccess(for: .audio) { c.resume(returning: $0) }
+        }
+    }
+
+    static func speechRecognition() async -> Bool {
+        if SFSpeechRecognizer.authorizationStatus() == .authorized {
+            return true
+        }
+        return await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+            SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) }
+        }
     }
 }

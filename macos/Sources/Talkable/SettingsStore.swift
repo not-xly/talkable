@@ -25,13 +25,18 @@ final class SettingsStore: ObservableObject {
     private init() {
         let d = UserDefaults.standard
         let system = Locale.current.identifier.replacingOccurrences(of: "-", with: "_")
-        let supported = ["en", "es", "fr", "pt", "it"]
-        let fallback = supported.contains(where: system.hasPrefix) ? system : "en_US"
-        localeID = d.string(forKey: "localeID") ?? fallback
+        localeID = d.string(forKey: "localeID") ?? Self.fallbackLocaleID(forSystem: system)
         onDeviceOnly = d.object(forKey: "onDeviceOnly") as? Bool ?? true
         sound = d.object(forKey: "sound") as? Bool ?? true
         punctuation = d.object(forKey: "punctuation") as? Bool ?? true
         polishWithAI = d.object(forKey: "polishWithAI") as? Bool ?? false
+    }
+
+    /// Picks the default dictation language from the system locale, or US
+    /// English when the system language isn't supported.
+    static func fallbackLocaleID(forSystem system: String) -> String {
+        let supported = ["en", "es", "fr", "pt", "it"]
+        return supported.contains(where: system.hasPrefix) ? system : "en_US"
     }
 
     static let languages: [(id: String, name: String)] = [

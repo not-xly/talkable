@@ -41,15 +41,15 @@ Grab the files from the [latest release](https://github.com/not-xly/talkable/rel
 
 | Platform | File |
 |---|---|
-| Windows (x64) | `Talkable_0.2.0_x64-setup.exe` (NSIS installer) |
-| Linux (x86_64) | `Talkable_0.2.0_amd64.AppImage` (portable, ~84 MB) or `Talkable_0.2.0_amd64.deb` (~7 MB + system packages) |
+| Windows (x64) | `Talkable_0.3.0_x64-setup.exe` (NSIS installer) |
+| Linux (x86_64) | `Talkable_0.3.0_amd64.AppImage` (portable, ~84 MB) or `Talkable_0.3.0_amd64.deb` (~7 MB + system packages) |
 | macOS | `Talkable-macOS.zip` (contains `Talkable.app`) |
 
 Bleeding-edge builds from every push are also in [Actions](https://github.com/not-xly/talkable/actions) artifacts (login required, they expire).
 
 Notes per system:
 
-- **Windows**: on first launch the app downloads the models (whisper ~145 MB, Qwen3 ~400 MB). Afterwards it works offline. If SmartScreen warns you: More info → Run anyway (unsigned build for now).
+- **Windows**: on first launch the app downloads the transcription model (~145 MB, required — setup can't finish without it) and, if you want AI polish, the polish model (~400 MB, optional). Afterwards it works offline. A small floating indicator shows what's happening while you dictate. If SmartScreen warns you: More info → Run anyway (unsigned build for now).
 - **Linux**: an **X11** session is required to type into other apps, plus the `libwebkit2gtk-4.1` package. On Wayland, dictate with the Dictate button and copy the text by hand.
 - **macOS**: being an unsigned build for now, right-click → Open on first launch (or allow it in Settings › Privacy & Security). Then grant what it asks for:
 
@@ -92,7 +92,7 @@ tauri build          # produces .exe / .AppImage / .deb under target/release/bun
 
 **macOS:** hold **right ⌘** to dictate, release to paste. A quick tap starts, another tap pastes.
 
-**Windows & Linux:** **right Ctrl** (or **F6** as a fallback). Same gestures: hold to dictate, release to paste, quick tap to toggle. If the global hotkey doesn't respond, the window has a Dictate button; and if auto-typing fails, the text stays in the window so you can copy it by hand.
+**Windows & Linux:** **right Ctrl** (or **F6** as a fallback). Same gestures: hold to dictate, release to paste, quick tap to toggle. A small floating indicator near the bottom of the screen shows what's happening (recording, transcribing, the final text) without stealing focus. If the global hotkey doesn't respond, the window has a Dictate button; and if auto-typing fails, the text stays in the window so you can copy it by hand.
 
 ## Status (v0.3)
 
@@ -100,7 +100,7 @@ Already working:
 
 - Global hotkey on all three systems, hold and tap modes.
 - macOS: on-device transcription (Apple Speech), live floating panel, auto-typing with clipboard fallback, preferences and first-run guide. Languages: en-US, es-AR, es-ES, es-MX, es-CO, es-CL, pt-BR, fr-FR, it-IT.
-- Windows & Linux: local transcription with whisper.cpp, optional polish with Qwen3-0.6B, first-run guide with model downloads.
+- Windows & Linux: local transcription with whisper.cpp, optional polish with Qwen3-0.6B, a floating dictation indicator above the desktop, and a first-run guide that requires the transcription model (AI polish stays optional).
 - AI polish (optional): a small model running on your machine fixes punctuation, accents, capitalization and filler words.
 
 On the way: configurable hotkey, spoken commands, auto-updates. See [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -110,18 +110,21 @@ On the way: configurable hotkey, spoken commands, auto-updates. See [docs/ROADMA
 ```
 talkable/
 ├── macos/                    native macOS app (Swift)
-│   ├── Sources/Talkable/     DictadoApp, AppState, HotkeyManager,
+│   ├── Sources/Talkable/     TalkableApp, AppState, HotkeyManager,
 │   │                         SpeechTranscriber, AudioCapture, HUDController,
-│   │                         TextTyper, PulidorIA, PreferencesView, OnboardingView
+│   │                         TextTyper, AIPolisher, PreferencesView,
+│   │                         OnboardingView, XlyTheme
 │   ├── scripts/make_app.sh   builds and bundles Talkable.app (ad-hoc signed)
 │   └── Package.swift         Swift dependencies (MLX, Hugging Face)
 ├── desktop/                  Windows & Linux app (Tauri v2)
 │   ├── src-tauri/src/        main.rs, audio.rs, stt.rs, polish.rs,
-│   │                         models.rs, typer.rs
+│   │                         models.rs, typer.rs, hud.rs
 │   ├── src-tauri/Cargo.toml  Rust dependencies
-│   └── ui/index.html         window: status, models, onboarding
+│   └── ui/                   index.html (status, models, setup) and
+│                             hud.html (floating indicator)
 ├── assets/                   icon (icns, png, svg, source)
-├── scripts/make_icon.sh      regenerates the .icns from source
+├── scripts/make_icon.sh      regenerates every icon with rounded corners
+│                             (needs Pillow: pip install Pillow)
 ├── docs/ROADMAP.md           what's done and what's missing, per version
 ├── .github/workflows/        CI: Windows, Linux and macOS builds on every push
 ├── LICENSE                   MIT

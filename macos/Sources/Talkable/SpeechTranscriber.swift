@@ -1,6 +1,22 @@
 import Speech
 
 final class SpeechTranscriber {
+    /// Recognizers are expensive to build; the docs recommend creating one
+    /// per locale and reusing it, so they live in a process-wide cache.
+    private static let cacheLock = NSLock()
+    private static var cache: [String: SFSpeechRecognizer] = [:]
+
+    private static func recognizer(forLocale localeID: String) -> SFSpeechRecognizer? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = cache[localeID] {
+            return cached
+        }
+        let fresh = SFSpeechRecognizer(locale: Locale(identifier: localeID))
+        cache[localeID] = fresh
+        return fresh
+    }
+
     private var recognizer: SFSpeechRecognizer?
     private let request = SFSpeechAudioBufferRecognitionRequest()
     private var task: SFSpeechRecognitionTask?
@@ -14,7 +30,7 @@ final class SpeechTranscriber {
         onUpdate: @escaping (String) -> Void,
         onFailure: @escaping (String) -> Void
     ) throws {
-        guard let rec = SFSpeechRecognizer(locale: Locale(identifier: localeID)) else {
+        guard let rec = Self.recognizer(forLocale: localeID) else {
             onFailure("The “\(localeID)” language has no speech support.")
             return
         }

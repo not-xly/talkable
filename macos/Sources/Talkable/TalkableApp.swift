@@ -23,10 +23,6 @@ struct TalkableApp: App {
                 }
             }
             .font(.caption)
-            .onReceive(NotificationCenter.default.publisher(for: Self.openOnboarding)) { _ in
-                NSApp.activate(ignoringOtherApps: true)
-                openWindow(id: "onboarding")
-            }
             Divider()
             Button(state.status == .recording ? "Stop and paste (right ⌘)" : "Start dictating (right ⌘)") {
                 state.hotkeyPressed()
@@ -53,15 +49,24 @@ struct TalkableApp: App {
             }
             .keyboardShortcut("q")
         } label: {
-            switch state.status {
-            case .recording:
-                Image(systemName: "mic.fill")
-            case .transcribing:
-                Image(systemName: "waveform")
-            case .error:
-                Image(systemName: "exclamationmark.triangle")
-            case .idle:
-                Image(systemName: "mic")
+            Group {
+                switch state.status {
+                case .recording:
+                    Image(systemName: "mic.fill")
+                case .transcribing:
+                    Image(systemName: "waveform")
+                case .error:
+                    Image(systemName: "exclamationmark.triangle")
+                case .idle:
+                    Image(systemName: "mic")
+                }
+            }
+            // The label view is alive the whole time (it swaps the status
+            // icon); the menu content is only built while the menu is open,
+            // so the first-run auto-open must be observed here to ever fire.
+            .onReceive(NotificationCenter.default.publisher(for: Self.openOnboarding)) { _ in
+                NSApp.activate(ignoringOtherApps: true)
+                openWindow(id: "onboarding")
             }
         }
 
@@ -84,6 +89,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let onboardingPending = !UserDefaults.standard.bool(forKey: "onboardingComplete")
         let hotkeyOK = AppState.shared.installHotkeys()
+
+        // Have the polish model ready before the first dictation that needs
+        // it: loading (or downloading) it on demand made dictations stall.
+        if SettingsStore.shared.polishWithAI {
+            Task.detached(priority: .utility) {
+                try? await AIPolisher.prepare()
+            }
+        }
 
         if !hotkeyOK && !onboardingPending {
             let alert = NSAlert()
