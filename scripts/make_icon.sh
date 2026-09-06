@@ -1,17 +1,14 @@
 #!/bin/bash
-# Regenerates assets/AppIcon.icns from assets/icon-source.jpeg
+# Regenerates every app icon from assets/icon-source.jpeg:
+#   assets/AppIcon.icns                    (macOS, rounded artwork + margins)
+#   desktop/src-tauri/icons/*              (Windows/Linux, rounded corners)
 set -euo pipefail
 cd "$(dirname "$0")/.."   # repo root
 
+python3 scripts/make_icon.py
+
+# macOS .icns from the 1024 icon (iconutil expects this exact layout)
 ASSETS="assets"
-SRC="$ASSETS/icon-source.jpeg"
-[ -f "$SRC" ] || { echo "Falta $SRC"; exit 1; }
-
-# Center crop so the artwork fills the canvas (the source has margins)
-sips -c 1150 1150 "$SRC" --out "$ASSETS/crop.jpg" >/dev/null
-sips -s format png "$ASSETS/crop.jpg" --out "$ASSETS/icon-1024.png" >/dev/null
-rm "$ASSETS/crop.jpg"
-
 rm -rf "$ASSETS/AppIcon.iconset"
 mkdir "$ASSETS/AppIcon.iconset"
 for s in 16 32 64 128 256 512; do
