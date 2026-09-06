@@ -18,7 +18,11 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { language: "en".into(), polish: true, onboarding_done: false }
+        Self {
+            language: "en".into(),
+            polish: true,
+            onboarding_done: false,
+        }
     }
 }
 

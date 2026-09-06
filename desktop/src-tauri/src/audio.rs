@@ -1,4 +1,5 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{Error, FromSample, Sample, SampleFormat, SizedSample};
 use std::sync::{Arc, Mutex};
 
 /// Records from the default microphone until `stop` is called.
@@ -22,69 +23,48 @@ impl Recorder {
             .default_input_config()
             .map_err(|e| format!("Microphone config: {e}"))?;
         let sample_rate = config.sample_rate();
-        // Whisper wants mono at 16 kHz: if the mic delivers stereo, mix it
-        // down to mono, otherwise transcription comes out double-speed.
+        // The transcription model wants mono at 16 kHz: if the mic delivers
+        // stereo, mix it down to mono, otherwise transcription comes out
+        // double-speed.
         let channels = config.channels() as usize;
-        let stream_config: cpal::StreamConfig = config.clone().into();
+        let stream_config: cpal::StreamConfig = config.into();
         let buffer: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
 
-        let buf_clone = buffer.clone();
+        // Every format the platform may hand us. Missing one here made
+        // recording fail outright on some Windows and Linux machines whose
+        // default device reports u8, i32 or f64 instead of f32/i16/u16.
         let err_fn = |e| eprintln!("audio: {e}");
-
         let stream = match config.sample_format() {
-            cpal::SampleFormat::F32 => device.build_input_stream(
-                stream_config.clone(),
-                move |data: &[f32], _| {
-                    if let Ok(mut b) = buf_clone.lock() {
-                        if channels <= 1 {
-                            b.extend_from_slice(data);
-                        } else {
-                            b.extend(
-                                data.chunks_exact(channels)
-                                    .map(|f| f.iter().sum::<f32>() / channels as f32),
-                            );
-                        }
-                    }
-                },
-                err_fn,
-                None,
-            ),
-            cpal::SampleFormat::I16 => device.build_input_stream(
-                stream_config.clone(),
-                move |data: &[i16], _| {
-                    if let Ok(mut b) = buf_clone.lock() {
-                        if channels <= 1 {
-                            b.extend(data.iter().map(|&s| s as f32 / 32768.0));
-                        } else {
-                            b.extend(data.chunks_exact(channels).map(|f| {
-                                f.iter().map(|&s| s as f32 / 32768.0).sum::<f32>()
-                                    / channels as f32
-                            }));
-                        }
-                    }
-                },
-                err_fn,
-                None,
-            ),
-            cpal::SampleFormat::U16 => device.build_input_stream(
-                stream_config.clone(),
-                move |data: &[u16], _| {
-                    if let Ok(mut b) = buf_clone.lock() {
-                        if channels <= 1 {
-                            b.extend(data.iter().map(|&s| (s as f32 - 32768.0) / 32768.0));
-                        } else {
-                            b.extend(data.chunks_exact(channels).map(|f| {
-                                f.iter()
-                                    .map(|&s| (s as f32 - 32768.0) / 32768.0)
-                                    .sum::<f32>()
-                                    / channels as f32
-                            }));
-                        }
-                    }
-                },
-                err_fn,
-                None,
-            ),
+            SampleFormat::I8 => {
+                open_stream::<i8>(&device, &stream_config, channels, &buffer, err_fn)
+            }
+            SampleFormat::I16 => {
+                open_stream::<i16>(&device, &stream_config, channels, &buffer, err_fn)
+            }
+            SampleFormat::I32 => {
+                open_stream::<i32>(&device, &stream_config, channels, &buffer, err_fn)
+            }
+            SampleFormat::I64 => {
+                open_stream::<i64>(&device, &stream_config, channels, &buffer, err_fn)
+            }
+            SampleFormat::U8 => {
+                open_stream::<u8>(&device, &stream_config, channels, &buffer, err_fn)
+            }
+            SampleFormat::U16 => {
+                open_stream::<u16>(&device, &stream_config, channels, &buffer, err_fn)
+            }
+            SampleFormat::U32 => {
+                open_stream::<u32>(&device, &stream_config, channels, &buffer, err_fn)
+            }
+            SampleFormat::U64 => {
+                open_stream::<u64>(&device, &stream_config, channels, &buffer, err_fn)
+            }
+            SampleFormat::F32 => {
+                open_stream::<f32>(&device, &stream_config, channels, &buffer, err_fn)
+            }
+            SampleFormat::F64 => {
+                open_stream::<f64>(&device, &stream_config, channels, &buffer, err_fn)
+            }
             other => return Err(format!("Unsupported audio format: {other}")),
         }
         .map_err(|e| format!("Couldn't open the microphone: {e}"))?;
@@ -116,6 +96,36 @@ impl Recorder {
     }
 }
 
+fn open_stream<S>(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    channels: usize,
+    buffer: &Arc<Mutex<Vec<f32>>>,
+    err_fn: impl FnMut(Error) + Send + 'static,
+) -> Result<cpal::Stream, Error>
+where
+    S: SizedSample,
+    f32: FromSample<S>,
+{
+    let buf_clone = buffer.clone();
+    device.build_input_stream(
+        *config,
+        move |data: &[S], _| {
+            if let Ok(mut b) = buf_clone.lock() {
+                if channels <= 1 {
+                    b.extend(data.iter().map(|&s| f32::from_sample(s)));
+                } else {
+                    b.extend(data.chunks_exact(channels).map(|frame| {
+                        frame.iter().map(|&s| f32::from_sample(s)).sum::<f32>() / channels as f32
+                    }));
+                }
+            }
+        },
+        err_fn,
+        None,
+    )
+}
+
 /// Linear resampling (good enough for voice).
 fn resample_to_16k(samples: &[f32], from: u32) -> Vec<f32> {
     if from == 16_000 || samples.is_empty() {
@@ -132,4 +142,45 @@ fn resample_to_16k(samples: &[f32], from: u32) -> Vec<f32> {
             samples[i0] * (1.0 - frac) + samples[i1] * frac
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resample_passthrough_at_16k() {
+        let samples = vec![0.1, 0.2, 0.3];
+        assert_eq!(resample_to_16k(&samples, 16_000), samples);
+    }
+
+    #[test]
+    fn resample_empty_input() {
+        assert!(resample_to_16k(&[], 48_000).is_empty());
+    }
+
+    #[test]
+    fn resample_halves_length_from_32k() {
+        let samples: Vec<f32> = (0..1000).map(|i| i as f32 / 1000.0).collect();
+        let out = resample_to_16k(&samples, 32_000);
+        assert_eq!(out.len(), 500);
+        // The first sample must survive nearly unchanged.
+        assert!((out[0] - samples[0]).abs() < 1e-3);
+    }
+
+    #[test]
+    fn resample_upsamples_from_8k() {
+        let samples: Vec<f32> = (0..250).map(|i| i as f32 / 250.0).collect();
+        let out = resample_to_16k(&samples, 8_000);
+        assert_eq!(out.len(), 500);
+    }
+
+    #[test]
+    fn resample_values_stay_in_range() {
+        let samples: Vec<f32> = (0..4800).map(|i| (i as f32 / 4800.0) * 2.0 - 1.0).collect();
+        let out = resample_to_16k(&samples, 48_000);
+        assert!(out
+            .iter()
+            .all(|v| v.is_finite() && (-1.5..=1.5).contains(v)));
+    }
 }

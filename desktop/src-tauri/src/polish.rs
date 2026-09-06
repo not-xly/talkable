@@ -14,9 +14,9 @@ punctuation, capitalization, accents and filler words, keeping the original lang
 Don't change the meaning or add content. Reply with ONLY the corrected text, \
 no explanations or quotes. /no_think";
 
-/// Candle is pure Rust (no C++ or linked ggml): it can live with whisper-rs
-/// in the same binary without symbol clashes. The model loads once and is
-/// reused on every dictation.
+/// Candle is pure Rust (no C++ or linked ggml): it can live with the
+/// transcription engine in the same binary without symbol clashes. The model
+/// loads once and is reused on every dictation.
 struct Loaded {
     model: ModelWeights,
     tokenizer: Tokenizer,
@@ -42,41 +42,80 @@ fn ensure_tokenizer(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Polishes raw text with Qwen3-0.6B on CPU (greedy, no network).
+fn load(model_path: &Path, tok_path: &Path) -> Result<Loaded, String> {
+    let device = Device::Cpu;
+    let mut f = File::open(model_path).map_err(|e| format!("Couldn't open the AI model: {e}"))?;
+    let content = candle_core::quantized::gguf_file::Content::read(&mut f)
+        .map_err(|e| format!("Invalid model file: {e}"))?;
+    let model = ModelWeights::from_gguf(content, &mut f, &device)
+        .map_err(|e| format!("Couldn't load the AI model: {e}"))?;
+    let tokenizer = Tokenizer::from_file(tok_path).map_err(|e| format!("Tokenizer: {e}"))?;
+    let eos = ["<|im_end|>", "<|endoftext|>"]
+        .iter()
+        .filter_map(|t| tokenizer.token_to_id(t))
+        .collect();
+    Ok(Loaded {
+        model,
+        tokenizer,
+        eos,
+    })
+}
+
+fn cache_contains(model_path: &Path, tok_path: &Path) -> bool {
+    CACHED
+        .lock()
+        .map(|g| {
+            g.as_ref()
+                .map(|(m, t, _)| m == model_path && *t == tok_path)
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
+}
+
+/// If both files are already on disk, loads the model in the background so
+/// the first polished dictation doesn't stall for seconds. Never touches the
+/// network: if the tokenizer is missing we just wait for the first use.
+pub fn prewarm(model_path: &Path) {
+    if !model_path.exists() {
+        return;
+    }
+    let tok_path = models::qwen_tokenizer_path();
+    if !tok_path.exists() || cache_contains(model_path, &tok_path) {
+        return;
+    }
+    let model = model_path.to_path_buf();
+    std::thread::spawn(move || {
+        let mut guard = match CACHED.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let fresh = guard
+            .as_ref()
+            .map(|(m, t, _)| m != &model || *t != tok_path)
+            .unwrap_or(true);
+        if fresh {
+            match load(&model, &tok_path) {
+                Ok(loaded) => *guard = Some((model, tok_path, loaded)),
+                Err(e) => eprintln!("talkable: AI polish warm-up failed: {e}"),
+            }
+        }
+    });
+}
+
+/// Polishes raw text locally (greedy, no network). The model loads once and
+/// is reused on every dictation.
 pub fn polish(raw: &str, model_path: &Path) -> Result<String, String> {
     let tok_path = models::qwen_tokenizer_path();
     ensure_tokenizer(&tok_path)?;
 
-    let mut guard = CACHED
-        .lock()
-        .map_err(|_| "Qwen3 model lock".to_string())?;
+    let mut guard = CACHED.lock().map_err(|_| "AI model lock".to_string())?;
     let stale = guard
         .as_ref()
         .map(|(m, t, _)| m != model_path || *t != tok_path)
         .unwrap_or(true);
     if stale {
-        let device = Device::Cpu;
-        let mut f =
-            File::open(model_path).map_err(|e| format!("Couldn't open Qwen3: {e}"))?;
-        let content = candle_core::quantized::gguf_file::Content::read(&mut f)
-            .map_err(|e| format!("Invalid GGUF: {e}"))?;
-        let model = ModelWeights::from_gguf(content, &mut f, &device)
-            .map_err(|e| format!("Couldn't load Qwen3: {e}"))?;
-        let tokenizer =
-            Tokenizer::from_file(&tok_path).map_err(|e| format!("Tokenizer: {e}"))?;
-        let eos = ["<|im_end|>", "<|endoftext|>"]
-            .iter()
-            .filter_map(|t| tokenizer.token_to_id(t))
-            .collect();
-        *guard = Some((
-            model_path.to_path_buf(),
-            tok_path.clone(),
-            Loaded {
-                model,
-                tokenizer,
-                eos,
-            },
-        ));
+        let loaded = load(model_path, &tok_path)?;
+        *guard = Some((model_path.to_path_buf(), tok_path, loaded));
     }
     let loaded = &mut guard.as_mut().expect("freshly cached model").2;
 
@@ -95,10 +134,21 @@ pub fn polish(raw: &str, model_path: &Path) -> Result<String, String> {
         return Err("Empty prompt".to_string());
     }
 
+    // A proofreader never needs more tokens than roughly the raw text it is
+    // fixing. The old fixed 256-token budget was the single biggest cause of
+    // slow dictations: the model kept generating long after the text was done.
+    let raw_tokens = loaded
+        .tokenizer
+        .encode(raw, false)
+        .map(|t| t.get_ids().len())
+        .unwrap_or(raw.len() / 3);
+    let max_new_tokens = (raw_tokens + raw_tokens / 2 + 16).clamp(32, 256);
+
     let device = Device::Cpu;
     let mut sampler = LogitsProcessor::new(299792458, None, None);
-    for index in 0..256 {
-        let context = if index > 0 { 1 } else { all.len() };
+    let mut wrote_content = false;
+    for _ in 0..max_new_tokens {
+        let context = if all.len() > start_len { 1 } else { all.len() };
         let start_pos = all.len().saturating_sub(context);
         let input = Tensor::new(&all[start_pos..], &device)
             .and_then(|t| t.unsqueeze(0))
@@ -110,9 +160,20 @@ pub fn polish(raw: &str, model_path: &Path) -> Result<String, String> {
             .and_then(|t| t.squeeze(0))
             .and_then(|t| t.to_dtype(DType::F32))
             .map_err(|e| format!("Decode: {e}"))?;
-        let next = sampler.sample(&logits).map_err(|e| format!("Sampling: {e}"))?;
+        let next = sampler
+            .sample(&logits)
+            .map_err(|e| format!("Sampling: {e}"))?;
         all.push(next);
         if loaded.eos.contains(&next) {
+            break;
+        }
+        // The corrected text is single-line: stop at the first newline after
+        // real content instead of letting the model ramble.
+        let piece = loaded.tokenizer.decode(&[next], false).unwrap_or_default();
+        if piece.chars().any(|c| !c.is_whitespace()) {
+            wrote_content = true;
+        } else if piece.contains('\n') && wrote_content {
+            all.pop();
             break;
         }
     }
@@ -143,4 +204,34 @@ pub fn sane(polished: &str, raw: &str) -> Option<String> {
         return None;
     }
     Some(p.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sane_accepts_minor_edits() {
+        assert_eq!(
+            sane("Hello, world!", "hello world").as_deref(),
+            Some("Hello, world!")
+        );
+    }
+
+    #[test]
+    fn sane_rejects_empty_output() {
+        assert_eq!(sane("   ", "hello"), None);
+        assert_eq!(sane("hello", "   "), None);
+    }
+
+    #[test]
+    fn sane_rejects_runaway_output() {
+        let long = "yes ".repeat(50);
+        assert_eq!(sane(&long, "hello"), None);
+    }
+
+    #[test]
+    fn sane_rejects_truncated_output() {
+        assert_eq!(sane("ok", "one two three four five six seven eight"), None);
+    }
 }
