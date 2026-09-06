@@ -60,6 +60,14 @@ Detalles por sistema:
 | **Monitorización de entrada** | Detectar la tecla de dictado en todo el sistema. |
 | **Accesibilidad** | Escribir el texto en la app que estés usando. |
 
+### Desinstalar
+
+Los modelos descargados viven fuera de la app, así que quitar la app sola no los borra:
+
+- **Windows**: desinstalá desde Configuración › Aplicaciones. El desinstalador pregunta si también querés borrar los modelos y ajustes descargados (viven en `%APPDATA%\talkable`).
+- **Linux**: quitá el paquete con tu gestor de paquetes (o borrá el `.AppImage`). Los modelos y ajustes están en `~/.local/share/talkable` — borrá esa carpeta para recuperar el espacio.
+- **macOS**: mové Talkable.app a la Papelera. El modelo de pulido con IA (~335 MB) queda en la caché `~/.cache/huggingface/hub` y tus ajustes en `~/Library/Preferences/local.talkable.app.plist` — borralos si querés dejar todo limpio.
+
 ### Quiero compilarlo
 
 Necesitás git y, según la plataforma:

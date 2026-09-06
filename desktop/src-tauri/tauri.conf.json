@@ -33,6 +33,11 @@
       "icons/icon.ico",
       "icons/icon.png"
     ],
-    "resources": ["../../LICENSE", "../../THIRD_PARTY_LICENSES.md"]
+    "resources": ["../../LICENSE", "../../THIRD_PARTY_LICENSES.md"],
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    }
   }
 }

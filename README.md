@@ -60,6 +60,14 @@ Notes per system:
 | **Input Monitoring** | To catch the dictation key system-wide. |
 | **Accessibility** | To type the text into the app you're using. |
 
+### Uninstall
+
+The downloaded models live outside the app, so removing the app alone leaves them behind:
+
+- **Windows**: uninstall from Settings › Apps. The uninstaller asks whether to also delete the downloaded models and settings (they live in `%APPDATA%\talkable`).
+- **Linux**: remove the package with your package manager (or delete the `.AppImage` file). The models and settings are in `~/.local/share/talkable` — delete that folder to reclaim the space.
+- **macOS**: move Talkable.app to the Trash. The AI polish model (~335 MB) is cached in `~/.cache/huggingface/hub` and your settings in `~/Library/Preferences/local.talkable.app.plist` — delete those if you want everything gone.
+
 ### I want to build it
 
 You need git and, depending on the platform:
