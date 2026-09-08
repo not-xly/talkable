@@ -27,6 +27,15 @@ final class TalkableTests: XCTestCase {
         XCTAssertEqual(TextProcessor.polish("árbol verde", enabled: true), "Árbol verde.")
     }
 
+    func testCapLengthKeepsShortText() {
+        XCTAssertEqual(TextProcessor.capLength("hello", maxChars: 4000), "hello")
+    }
+
+    func testCapLengthTruncatesLongText() {
+        let long = String(repeating: "a", count: 5000)
+        XCTAssertEqual(TextProcessor.capLength(long, maxChars: 4000).count, 4000)
+    }
+
     // MARK: SettingsStore.fallbackLocaleID
 
     func testFallbackLocaleSupportedLanguages() {

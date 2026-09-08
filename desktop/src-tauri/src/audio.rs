@@ -29,11 +29,18 @@ impl Recorder {
         let channels = config.channels() as usize;
         let stream_config: cpal::StreamConfig = config.into();
         let buffer: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
+        let keep_going = Arc::new(AtomicBool::new(true));
 
         // Every format the platform may hand us. Missing one here made
         // recording fail outright on some Windows and Linux machines whose
         // default device reports u8, i32 or f64 instead of f32/i16/u16.
-        let err_fn = |e| eprintln!("audio: {e}");
+        let keep_clone = keep_going.clone();
+        let err_fn = move |e| {
+            eprintln!("audio: {e}");
+            // A stream error means no more data is coming: stop the wait loop.
+            use std::sync::atomic::Ordering;
+            keep_clone.store(false, Ordering::SeqCst);
+        };
         let stream = match config.sample_format() {
             SampleFormat::I8 => {
                 open_stream::<i8>(&device, &stream_config, channels, &buffer, err_fn)
@@ -75,7 +82,7 @@ impl Recorder {
             stream: Some(stream),
             buffer,
             sample_rate,
-            keep_going: Arc::new(AtomicBool::new(true)),
+            keep_going,
         })
     }
 
@@ -88,8 +95,17 @@ impl Recorder {
         use std::sync::atomic::Ordering;
         self.keep_going.store(false, Ordering::SeqCst);
         self.stream.take(); // dropped on the same thread
+        // Take ownership of the buffer instead of cloning minutes of audio.
         let (samples, rate) = {
-            let b = self.buffer.lock().map(|b| b.clone()).unwrap_or_default();
+            let mut b = self.buffer.lock().map(|mut b| std::mem::take(&mut *b)).unwrap_or_default();
+            // Soft limiter: clamp runaway input to avoid huge allocations.
+            b.iter_mut().for_each(|v| {
+                if *v > 1.0 {
+                    *v = 1.0;
+                } else if *v < -1.0 {
+                    *v = -1.0;
+                }
+            });
             (b, self.sample_rate)
         };
         resample_to_16k(&samples, rate)

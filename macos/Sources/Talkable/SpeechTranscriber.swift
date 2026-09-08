@@ -84,10 +84,10 @@ final class SpeechTranscriber {
         completion = onDone
         request.endAudio()
         task?.finish()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [self] in
-            guard !finished else { return }
-            deliver(lastPartial, nil)
-            cancel()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard let self, !self.finished else { return }
+            self.deliver(self.lastPartial, nil)
+            self.cancel()
         }
     }
 

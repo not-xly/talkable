@@ -14,6 +14,11 @@ punctuation, capitalization, accents and filler words, keeping the original lang
 Don't change the meaning or add content. Reply with ONLY the corrected text, \
 no explanations or quotes. /no_think";
 
+const TRANSLATE_PROMPT_PREFIX: &str = "You are a translator. Translate the user's text to ";
+
+const TRANSLATE_PROMPT_SUFFIX: &str = ". Keep punctuation and capitalization natural. \
+Reply with ONLY the translation, no explanations or quotes. /no_think";
+
 /// Candle is pure Rust (no C++ or linked ggml): it can live with the
 /// transcription engine in the same binary without symbol clashes. The model
 /// loads once and is reused on every dictation.
@@ -26,6 +31,7 @@ struct Loaded {
 static CACHED: Mutex<Option<(PathBuf, PathBuf, Loaded)>> = Mutex::new(None);
 
 /// The tokenizer is tiny (~MB) and downloads itself if missing.
+/// Uses a short timeout so a stalled network never hangs dictation forever.
 fn ensure_tokenizer(path: &Path) -> Result<(), String> {
     if path.exists() {
         return Ok(());
@@ -33,11 +39,21 @@ fn ensure_tokenizer(path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let bytes = reqwest::blocking::get(models::TOKENIZER_URL)
+    let client = reqwest::blocking::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Couldn't download the tokenizer: {e}"))?;
+    let bytes = client
+        .get(models::TOKENIZER_URL)
+        .send()
         .and_then(|r| r.error_for_status())
         .map_err(|e| format!("Couldn't download the tokenizer: {e}"))?
         .bytes()
         .map_err(|e| e.to_string())?;
+    if bytes.is_empty() {
+        return Err("Couldn't download the tokenizer: empty file".into());
+    }
     std::fs::write(path, &bytes).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -105,6 +121,42 @@ pub fn prewarm(model_path: &Path) {
 /// Polishes raw text locally (greedy, no network). The model loads once and
 /// is reused on every dictation.
 pub fn polish(raw: &str, model_path: &Path) -> Result<String, String> {
+    run_model(raw, model_path, &system_prompt()) 
+}
+
+/// Translates text to the target language locally with the same Qwen model.
+/// Requires the AI model to be installed; returns an error otherwise.
+pub fn translate(text: &str, target: &str, model_path: &Path) -> Result<String, String> {
+    if !model_path.exists() {
+        return Err("AI model isn't downloaded".into());
+    }
+    let prompt = format!("{TRANSLATE_PROMPT_PREFIX}{target}{TRANSLATE_PROMPT_SUFFIX}");
+    run_model(text, model_path, &prompt)
+}
+
+fn system_prompt() -> String {
+    SYSTEM_PROMPT.to_string()
+}
+
+/// Keeps the tail of very long inputs so the prompt stays inside the model
+/// context window (prevents OOM on multi-minute dictations).
+fn truncate_to_token_budget(text: &str, loaded: &Loaded, budget: usize) -> String {
+    let ids = loaded
+        .tokenizer
+        .encode(text, false)
+        .map(|t| t.get_ids().to_vec())
+        .unwrap_or_default();
+    if ids.len() <= budget || ids.is_empty() {
+        return text.to_string();
+    }
+    let tail = &ids[ids.len() - budget..];
+    loaded.tokenizer.decode(tail, true).unwrap_or_else(|_| {
+        // Fallback: char-level tail if decoding fails.
+        text.chars().rev().take(budget * 3).collect::<String>().chars().rev().collect()
+    })
+}
+
+fn run_model(input_text: &str, model_path: &Path, system: &str) -> Result<String, String> {
     let tok_path = models::qwen_tokenizer_path();
     ensure_tokenizer(&tok_path)?;
 
@@ -119,8 +171,11 @@ pub fn polish(raw: &str, model_path: &Path) -> Result<String, String> {
     }
     let loaded = &mut guard.as_mut().expect("freshly cached model").2;
 
+    // Truncate very long inputs to stay inside the model context and avoid OOM.
+    let raw = truncate_to_token_budget(input_text, loaded, models::MAX_INPUT_TOKENS);
+
     let prompt = format!(
-        "<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n\
+        "<|im_start|>system\n{system}<|im_end|>\n\
          <|im_start|>user\n{raw}<|im_end|>\n\
          <|im_start|>assistant\n"
     );
@@ -139,7 +194,7 @@ pub fn polish(raw: &str, model_path: &Path) -> Result<String, String> {
     // slow dictations: the model kept generating long after the text was done.
     let raw_tokens = loaded
         .tokenizer
-        .encode(raw, false)
+        .encode(raw.as_str(), false)
         .map(|t| t.get_ids().len())
         .unwrap_or(raw.len() / 3);
     let max_new_tokens = (raw_tokens + raw_tokens / 2 + 16).clamp(32, 256);

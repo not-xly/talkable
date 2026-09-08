@@ -89,7 +89,13 @@ pub fn init(app: &AppHandle) {
 }
 
 fn position(window: &tauri::WebviewWindow) {
-    let Ok(Some(monitor)) = window.primary_monitor() else {
+    // Prefer the monitor with the cursor; fall back to the primary monitor.
+    let monitor = window
+        .cursor_position()
+        .ok()
+        .and_then(|p| window.monitor_from_point(p.x, p.y).ok().flatten())
+        .or_else(|| window.primary_monitor().ok().flatten());
+    let Some(monitor) = monitor else {
         return;
     };
     let scale = monitor.scale_factor();
@@ -122,9 +128,11 @@ fn hide_later(app: &AppHandle, delay: Duration) {
 /// overlay always mirrors what the main window shows.
 pub fn update(app: &AppHandle, stage: &str, text: Option<&str>, detail: Option<&str>) {
     let (kind, message) = match stage {
-        "recording" => ("recording", "Recording…".to_string()),
+        "recording" => ("recording", "Recording… (Esc cancels)".to_string()),
         "transcribing" => ("busy", "Transcribing…".to_string()),
         "polishing" => ("busy", "Polishing with AI…".to_string()),
+        "translating" => ("busy", "Translating…".to_string()),
+        "cancelled" => ("done", "Cancelled".to_string()),
         "done" => ("done", text.unwrap_or("Done").to_string()),
         "error" => (
             "error",

@@ -17,6 +17,9 @@ final class AppState: ObservableObject {
     @Published private(set) var status: Status = .idle
     @Published private(set) var partialText: String = ""
     @Published private(set) var hotkeyActive = false
+    /// True while auto-typing the previous dictation in the background.
+    /// Blocks a new recording so two typers never interleave keystrokes.
+    @Published private(set) var isTyping = false
 
     var isDictating: Bool {
         status == .recording || status == .transcribing
@@ -37,6 +40,8 @@ final class AppState: ObservableObject {
         #if DEBUG
         NSLog("Talkable: hotkeyPressed in state \(status)")
         #endif
+        // Never start while the previous paste is still typing.
+        if isTyping { return }
         switch status {
         case .idle, .error:
             startRecording()
@@ -154,27 +159,46 @@ final class AppState: ObservableObject {
             return
         }
 
+        // 2-minute safety cap: very long dictations would OOM the local model.
+        let capped = TextProcessor.capLength(clean, maxChars: 4000)
         if settings.polishWithAI {
             hud.showPolishing()
             Task { @MainActor in
-                let polished = await AIPolisher.polish(clean)
-                self.typeAndClose(polished + " ")
+                var out = await AIPolisher.polish(capped)
+                if settings.translateEnabled {
+                    hud.showTranslating()
+                    out = await AIPolisher.translate(out, to: settings.translateTarget)
+                }
+                self.typeAndClose(out + " ")
+            }
+        } else if settings.translateEnabled {
+            hud.showTranslating()
+            Task { @MainActor in
+                let out = await AIPolisher.translate(capped, to: settings.translateTarget)
+                self.typeAndClose(out + " ")
             }
         } else {
-            typeAndClose(clean + " ")
+            typeAndClose(capped + " ")
         }
     }
 
     /// Types the final text and returns to the initial state.
+    /// Blocks new recordings until typing finishes (no interleaved keystrokes).
     private func typeAndClose(_ text: String) {
-        typer.type(text) { ok in
-            if !ok {
-                self.hud.showError("Paste with ⌘V (grant “Accessibility” for auto-paste)")
+        isTyping = true
+        typer.type(text) { [weak self] ok in
+            Task { @MainActor in
+                guard let self else { return }
+                if !ok {
+                    self.hud.showError("Paste with ⌘V (grant “Accessibility” for auto-paste)")
+                } else {
+                    self.hud.hide()
+                }
+                self.status = .idle
+                self.partialText = ""
+                self.isTyping = false
             }
         }
-        status = .idle
-        partialText = ""
-        hud.hide()
     }
 
     func cancel() {
@@ -204,6 +228,12 @@ enum TextProcessor {
             s += "."
         }
         return s
+    }
+
+    /// Hard cap to keep the local model inside its context window.
+    static func capLength(_ text: String, maxChars: Int) -> String {
+        guard text.count > maxChars else { return text }
+        return String(text.suffix(maxChars))
     }
 }
 

@@ -19,7 +19,12 @@ final class HotkeyManager {
     }
 
     func install() -> Bool {
-        guard tap == nil else { return true }
+        // Retry-safe: reuse the existing tap; never create a second one from
+        // retries or a second instance (that would fire duplicate events).
+        if tap != nil { return true }
+        if let prev = HotkeyManager.instance, prev !== self {
+            prev.uninstall()
+        }
         HotkeyManager.instance = self
         #if DEBUG
         NSLog("Talkable: CGPreflightListenEventAccess=\(CGPreflightListenEventAccess())")
@@ -92,5 +97,25 @@ final class HotkeyManager {
             }
         }
         return true
+    }
+
+    func uninstall() {
+        watchdog?.invalidate()
+        watchdog = nil
+        if let tap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            if let src = runLoopSource {
+                CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes)
+            }
+        }
+        tap = nil
+        runLoopSource = nil
+        if HotkeyManager.instance === self {
+            HotkeyManager.instance = nil
+        }
+    }
+
+    deinit {
+        uninstall()
     }
 }

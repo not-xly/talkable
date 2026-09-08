@@ -1,10 +1,17 @@
 import AppKit
+import ApplicationServices
 
 /// Types text by faking Unicode keyboard events in the focused app.
 /// Without the Accessibility permission, copies to the clipboard instead.
 final class TextTyper {
+    /// Checks trust, prompting the user once when needed.
+    static func isTrusted(prompt: Bool = false) -> Bool {
+        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: prompt] as CFDictionary
+        return AXIsProcessTrustedWithOptions(opts)
+    }
+
     func type(_ text: String, completion: ((Bool) -> Void)? = nil) {
-        guard AXIsProcessTrusted() else {
+        guard Self.isTrusted(prompt: true) else {
             let pb = NSPasteboard.general
             pb.clearContents()
             pb.setString(text, forType: .string)

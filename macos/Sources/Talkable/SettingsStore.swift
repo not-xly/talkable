@@ -19,7 +19,24 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(punctuation, forKey: "punctuation") }
     }
     @Published var polishWithAI: Bool {
-        didSet { UserDefaults.standard.set(polishWithAI, forKey: "polishWithAI") }
+        didSet {
+            UserDefaults.standard.set(polishWithAI, forKey: "polishWithAI")
+            if polishWithAI {
+                Task.detached(priority: .utility) { try? await AIPolisher.prepare() }
+            }
+        }
+    }
+    @Published var translateEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(translateEnabled, forKey: "translateEnabled")
+            // Prewarm the model when translation is turned on (same as polish).
+            if translateEnabled {
+                Task.detached(priority: .utility) { try? await AIPolisher.prepare() }
+            }
+        }
+    }
+    @Published var translateTarget: String {
+        didSet { UserDefaults.standard.set(translateTarget, forKey: "translateTarget") }
     }
 
     private init() {
@@ -30,6 +47,10 @@ final class SettingsStore: ObservableObject {
         sound = d.object(forKey: "sound") as? Bool ?? true
         punctuation = d.object(forKey: "punctuation") as? Bool ?? true
         polishWithAI = d.object(forKey: "polishWithAI") as? Bool ?? false
+        // Translation needs the AI model: keep it off when the model is missing.
+        let modelLocal = AIPolisher.isModelLocal
+        translateEnabled = (d.object(forKey: "translateEnabled") as? Bool ?? false) && modelLocal
+        translateTarget = d.string(forKey: "translateTarget") ?? "es"
     }
 
     /// Picks the default dictation language from the system locale, or US

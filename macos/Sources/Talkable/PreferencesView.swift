@@ -5,8 +5,8 @@ import Speech
 struct PreferencesView: View {
     @ObservedObject private var settings = SettingsStore.shared
     @ObservedObject private var appState = AppState.shared
-    @State private var refresh = false
-    private static let ticker = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+    // Refreshed when the app becomes active again (user returns from Settings).
+    @State private var refreshTick = 0
 
     var body: some View {
         Form {
@@ -24,7 +24,26 @@ struct PreferencesView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                Toggle("Translate offline", isOn: $settings.translateEnabled)
+                    .disabled(!AIPolisher.isModelLocal)
+                if settings.translateEnabled || !AIPolisher.isModelLocal {
+                    Picker("Translate to", selection: $settings.translateTarget) {
+                        Text("English").tag("en")
+                        Text("Spanish").tag("es")
+                        Text("French").tag("fr")
+                        Text("Portuguese").tag("pt")
+                        Text("Italian").tag("it")
+                        Text("German").tag("de")
+                    }
+                    .disabled(!AIPolisher.isModelLocal)
+                    if !AIPolisher.isModelLocal {
+                        Text("Needs the AI model (~335 MB). Enable Polish with AI or download it from the setup guide first.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Toggle("Sound on start and stop", isOn: $settings.sound)
+                let _ = refreshTick
             }
 
             Section("Hotkey") {
@@ -64,12 +83,16 @@ struct PreferencesView: View {
             Section("Permissions") {
                 permissionRow("Microphone", ok: micOK())
                 permissionRow("Speech recognition", ok: speechOK())
-                permissionRow("Accessibility (for auto-paste)", ok: AXIsProcessTrusted())
-                if !AXIsProcessTrusted() {
+                permissionRow("Accessibility (for auto-paste)", ok: TextTyper.isTrusted())
+                if !TextTyper.isTrusted() {
                     Button("Open Settings › Privacy › Accessibility") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                             NSWorkspace.shared.open(url)
                         }
+                    }
+                    Button("Ask for permission") {
+                        _ = TextTyper.isTrusted(prompt: true)
+                        refreshTick += 1
                     }
                 }
                 if !micOK() || !speechOK() {
@@ -87,9 +110,8 @@ struct PreferencesView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .onAppear { refresh.toggle() }
-        .onReceive(Self.ticker) { _ in
-            refresh.toggle()
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshTick += 1
         }
     }
 

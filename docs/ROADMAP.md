@@ -1,6 +1,16 @@
 # Roadmap
 
-## v0.3.0 — current
+## v0.4.0 — current
+
+New in v0.4.0 (bug fixes + features):
+
+- Fixed download state race, added size verification, real timeouts, resume + cancel
+- Fixed tokenizer hang, input truncation (OOM guard), 2-minute dictation cap, Esc cancels
+- Fixed Right Ctrl combos, hotkey tap leaks, typing races, Accessibility prompt, AI prewarm
+- Added offline translation (needs the AI model), polish on/off in Settings, offline indicator
+- Hardened HUD (correct monitor), CSP, CI tests, version script
+
+Carried from v0.3.0:
 
 macOS (native Swift app):
 

@@ -74,7 +74,7 @@
 
   .status {
     border: 1px solid var(--border); border-radius: 8px;
-    padding: 10px 12px; min-height: 56px; font-size: 14px;
+    padding: 10px 12px; min-height: 56px; max-height: 200px; overflow: auto; font-size: 14px;
     white-space: pre-wrap; word-break: break-word;
   }
   .status.ok { border-color: var(--accent); background: var(--accent-soft); }
@@ -83,6 +83,13 @@
   .barwrap { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 10px; display: none; }
   .barwrap.on { display: block; }
   .barwrap > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .barwrap.indet > div { width: 40% !important; animation: indet 1.2s ease-in-out infinite; }
+  @keyframes indet { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+  .offline { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 5px; padding: 1px 8px; margin-left: 8px; }
+  .offline.ok { background: var(--accent-soft); color: var(--accent); }
+  .offline.busy { background: var(--warn-bg); color: var(--warn-text); }
+  .ob-error { display: none; font-size: 13px; color: var(--danger); background: var(--danger-soft); border-radius: 8px; padding: 8px 10px; margin-top: 10px; }
+  .ob-error.on { display: block; }
 
   .hint { font-size: 13px; color: var(--text-2); margin-top: 8px; }
   .ready { color: var(--accent); font-weight: 600; }
@@ -156,29 +163,30 @@
 
     <div id="ob1" class="step hidden">
       <h2>Local models</h2>
-      <p>Both run <b>on your machine</b>. They download once and work offline forever after.</p>
+      <p>Both run <b>on your machine</b>. They download once and work offline forever after. Installing the AI model also enables translation.</p>
       <div class="box">
         <div class="row">
           <div>
-            <b>Transcription</b> <span class="chip required">Required</span> <small>(~145 MB)</small><br>
+            <b>Transcription</b> <span class="chip required">Required</span> <small id="obWhisperSize">(~145 MB)</small><br>
             <span class="muted">Turns your voice into text. Talkable can't transcribe without it.</span><br>
             <span id="obWhisperState" class="missing">Not installed</span>
           </div>
-          <button id="obDlWhisper">Download</button>
+          <span><button id="obDlWhisper">Download</button> <button id="obCancelWhisper" class="ghost hidden">Cancel</button></span>
         </div>
         <div class="barwrap" id="obBarWhisperWrap"><div id="obBarWhisper"></div></div>
       </div>
       <div class="box">
         <div class="row">
           <div>
-            <b>AI polish</b> <span class="chip optional">Optional</span> <small>(~400 MB)</small><br>
-            <span class="muted">Fixes punctuation, accents and filler words. You can skip it or add it later.</span><br>
+            <b>AI polish + translation</b> <span class="chip optional">Optional</span> <small id="obQwenSize">(~400 MB)</small><br>
+            <span class="muted">Fixes punctuation, accents and filler words. Also enables offline translation. You can skip it or add it later.</span><br>
             <span id="obQwenState" class="missing">Not installed</span>
           </div>
-          <button id="obDlQwen">Download</button>
+          <span><button id="obDlQwen">Download</button> <button id="obCancelQwen" class="ghost hidden">Cancel</button></span>
         </div>
         <div class="barwrap" id="obBarQwenWrap"><div id="obBarQwen"></div></div>
       </div>
+      <div id="obError" class="ob-error"></div>
     </div>
 
     <div id="ob2" class="step hidden">
@@ -207,8 +215,8 @@
   </div>
 
   <!-- ============ MAIN SCREEN ============ -->
-  <h1>Talkable</h1>
-  <div class="sub">Local voice dictation — free, private, no cloud.</div>
+  <h1>Talkable <span id="offlineBadge" class="offline ok">Offline ready</span></h1>
+  <div class="sub">Local voice dictation — free, private, no cloud. With the AI model installed you also get offline translation.</div>
 
   <div class="banner" id="whisperBanner">
     <b>Talkable can't transcribe yet.</b>
@@ -221,12 +229,12 @@
 
   <div class="card">
     <h2>Status</h2>
-    <div id="status" class="status">Hold the dictation key, speak, release.</div>
+    <div id="status" class="status">Hold the dictation key, speak, release. Max 2 minutes per dictation. Press Esc to cancel.</div>
     <div class="row" style="margin-top:12px">
-      <button id="btnDictate">Dictate</button>
+      <span><button id="btnDictate">Dictate</button> <button id="btnCancel" class="ghost">Cancel (Esc)</button></span>
       <span class="muted" id="hotkeyHint"></span>
     </div>
-    <div class="hint">If the global hotkey doesn't work (e.g. on Wayland), use the button: click to start, click to paste.</div>
+    <div class="hint">If the global hotkey doesn't work (e.g. on Wayland), use the button: click to start, click to paste. Esc cancels without typing.</div>
   </div>
 
   <div class="card">
@@ -246,7 +254,21 @@
         <input type="checkbox" id="polish" /> AI polish <span class="chip optional">Optional</span>
       </label>
     </div>
-    <div class="hint">AI polish fixes punctuation, accents and fillers on your computer. If it's off or its model is missing, the raw text gets pasted.</div>
+    <div class="row" style="margin-top:10px">
+      <label class="switch">
+        <input type="checkbox" id="translate" /> Translate to
+        <select id="targetLang">
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="pt">Portuguese</option>
+          <option value="it">Italian</option>
+          <option value="de">German</option>
+        </select>
+      </label>
+      <span class="muted" id="translateHint"></span>
+    </div>
+    <div class="hint">AI polish fixes punctuation, accents and fillers on your computer. Translation needs the AI model too. If off or the model is missing, the raw text gets pasted.</div>
   </div>
 
   <div class="card">
@@ -254,20 +276,20 @@
     <div class="modelrow">
       <div class="row">
         <div>
-          <b>Transcription</b> <span class="chip required">Required</span> <small>(~145 MB)</small><br>
+          <b>Transcription</b> <span class="chip required">Required</span> <small id="whisperSize">(~145 MB)</small><br>
           <span id="whisperState" class="missing">Not installed</span>
         </div>
-        <button id="dlWhisper">Download</button>
+        <span><button id="dlWhisper">Download</button> <button id="cancelWhisper" class="ghost hidden">Cancel</button></span>
       </div>
       <div class="barwrap" id="barWhisperWrap"><div id="barWhisper"></div></div>
     </div>
     <div class="modelrow">
       <div class="row">
         <div>
-          <b>AI polish</b> <span class="chip optional">Optional</span> <small>(~400 MB)</small><br>
+          <b>AI polish + translation</b> <span class="chip optional">Optional</span> <small id="qwenSize">(~400 MB)</small><br>
           <span id="qwenState" class="missing">Not installed</span>
         </div>
-        <button id="dlQwen">Download</button>
+        <span><button id="dlQwen">Download</button> <button id="cancelQwen" class="ghost hidden">Cancel</button></span>
       </div>
       <div class="barwrap" id="barQwenWrap"><div id="barQwen"></div></div>
     </div>
@@ -330,24 +352,55 @@ $("obNext").addEventListener("click", async () => {
 $("obBack").addEventListener("click", () => showStep(Math.max(0, onboardingStep - 1)));
 $("btnOnboarding").addEventListener("click", openOnboarding);
 
-/* ---------- downloads ---------- */
+/* ---------- downloads (state is driven by backend events, not by invoke return) ---------- */
+function showObError(msg) {
+  const el = $("obError");
+  if (!msg) { el.classList.remove("on"); el.textContent = ""; return; }
+  el.textContent = msg;
+  el.classList.add("on");
+}
 function startDownload(which) {
   if (downloading.has(which)) return;
+  // Optimistic UI; the authoritative state comes from download-start/done/error.
   downloading.add(which);
-  const wrapId = which === "whisper" ? "barWhisperWrap" : "barQwenWrap";
-  const barId = which === "whisper" ? "barWhisper" : "barQwen";
-  $(wrapId).classList.add("on");
-  $(barId).style.width = "0";
+  paintDownload(which, 0, false);
   updateDownloadButtons();
-  invoke("download_model", { which })
-    .catch(e => setStatus("err", "Couldn't start the download: " + e))
-    .finally(() => {
-      downloading.delete(which);
-      $(wrapId).classList.remove("on");
-      $(barId).style.width = "0";
-      updateDownloadButtons();
-      refresh();
-    });
+  invoke("download_model", { which }).catch(e => {
+    // Backend rejected (already running / unknown): roll back optimistic state.
+    downloading.delete(which);
+    updateDownloadButtons();
+    const msg = "Couldn't start the download: " + e;
+    setStatus("err", msg);
+    if (inOnboarding) showObError(msg);
+  });
+}
+function cancelDownload(which) {
+  invoke("cancel_download", { which }).catch(e => setStatus("err", String(e)));
+}
+function paintDownload(which, pct, unknown) {
+  const pairs = which === "whisper"
+    ? [["barWhisperWrap", "barWhisper"], ["obBarWhisperWrap", "obBarWhisper"]]
+    : [["barQwenWrap", "barQwen"], ["obBarQwenWrap", "obBarQwen"]];
+  for (const [wrapId, barId] of pairs) {
+    const wrap = $(wrapId), bar = $(barId);
+    if (!wrap || !bar) continue;
+    wrap.classList.add("on");
+    if (unknown) {
+      wrap.classList.add("indet");
+      bar.style.width = "";
+    } else {
+      wrap.classList.remove("indet");
+      bar.style.width = pct + "%";
+    }
+  }
+}
+function clearDownloadBar(which) {
+  const ids = which === "whisper"
+    ? ["barWhisperWrap", "barWhisper", "obBarWhisperWrap", "obBarWhisper"]
+    : ["barQwenWrap", "barQwen", "obBarQwenWrap", "obBarQwen"];
+  const [w1, b1, w2, b2] = ids.map($);
+  for (const w of [w1, w2]) if (w) { w.classList.remove("on"); w.classList.remove("indet"); }
+  for (const b of [b1, b2]) if (b) b.style.width = "0";
 }
 function updateDownloadButtons() {
   const disW = whisperReady || downloading.has("whisper");
@@ -361,12 +414,21 @@ function updateDownloadButtons() {
   $("obDlWhisper").textContent = $("dlWhisper").textContent;
   $("dlQwen").textContent = downloading.has("qwen") ? "Downloading…" : qwenReady ? "Installed" : "Download";
   $("obDlQwen").textContent = $("dlQwen").textContent;
+  for (const [id, which] of [["cancelWhisper","whisper"],["obCancelWhisper","whisper"],["cancelQwen","qwen"],["obCancelQwen","qwen"]]) {
+    const el = $(id);
+    if (el) el.classList.toggle("hidden", !downloading.has(which));
+  }
+  if (!downloading.has("whisper")) $("bannerPct").textContent = "";
 }
 $("dlWhisper").addEventListener("click", () => startDownload("whisper"));
 $("obDlWhisper").addEventListener("click", () => startDownload("whisper"));
 $("bannerDl").addEventListener("click", () => startDownload("whisper"));
 $("dlQwen").addEventListener("click", () => startDownload("qwen"));
 $("obDlQwen").addEventListener("click", () => startDownload("qwen"));
+$("cancelWhisper").addEventListener("click", () => cancelDownload("whisper"));
+$("obCancelWhisper").addEventListener("click", () => cancelDownload("whisper"));
+$("cancelQwen").addEventListener("click", () => cancelDownload("qwen"));
+$("obCancelQwen").addEventListener("click", () => cancelDownload("qwen"));
 
 /* ---------- main ---------- */
 function setStatus(kind, message) {
@@ -384,6 +446,7 @@ async function refresh() {
   }
   whisperReady = s.whisperReady;
   qwenReady = s.qwenReady;
+  if (Array.isArray(s.downloading)) downloading = new Set(s.downloading);
   $("whisperState").textContent = whisperReady ? "Installed — ready" : "Not installed";
   $("whisperState").className = whisperReady ? "ready" : "missing";
   $("qwenState").textContent = qwenReady ? "Installed — ready" : "Not installed";
@@ -392,8 +455,26 @@ async function refresh() {
   $("obWhisperState").className = whisperReady ? "ready" : "missing";
   $("obQwenState").textContent = qwenReady ? "Installed — ready" : "Not installed";
   $("obQwenState").className = qwenReady ? "ready" : "missing";
+  if (s.whisperSize) { $("whisperSize").textContent = `(${s.whisperSize})`; $("obWhisperSize").textContent = `(${s.whisperSize})`; $("bannerDl").textContent = `Download now (${s.whisperSize})`; }
+  if (s.qwenSize) { $("qwenSize").textContent = `(${s.qwenSize})`; $("obQwenSize").textContent = `(${s.qwenSize})`; }
   $("lang").value = s.config.language;
   $("polish").checked = s.config.polish;
+  $("translate").checked = !!s.config.translate && qwenReady;
+  $("translate").disabled = !qwenReady;
+  $("targetLang").value = s.config.target_language || "es";
+  $("targetLang").disabled = !qwenReady;
+  $("translateHint").textContent = qwenReady ? "" : "Needs the AI model";
+  const badge = $("offlineBadge");
+  if (s.networkActive || downloading.size > 0) {
+    badge.textContent = "Online — downloading";
+    badge.className = "offline busy";
+  } else if (s.offlineReady) {
+    badge.textContent = "Offline ready";
+    badge.className = "offline ok";
+  } else {
+    badge.textContent = "Offline — model missing";
+    badge.className = "offline busy";
+  }
   $("whisperBanner").classList.toggle("on", !whisperReady);
   $("obKey").textContent = s.hotkey || "not registered (use the Dictate button)";
   $("hotkeyHint").textContent = s.hotkey ? ("Key: " + s.hotkey) : "Hotkey not registered: use the Dictate button";
@@ -402,13 +483,24 @@ async function refresh() {
   if (!s.config.onboarding_done && !inOnboarding) openOnboarding();
 }
 
-$("lang").addEventListener("change", async () => {
-  await invoke("set_config", { language: $("lang").value, polish: $("polish").checked });
-});
-$("polish").addEventListener("change", async () => {
-  await invoke("set_config", { language: $("lang").value, polish: $("polish").checked });
-});
+async function pushConfig() {
+  await invoke("set_config", {
+    language: $("lang").value,
+    polish: $("polish").checked,
+    translate: $("translate").checked,
+    targetLanguage: $("targetLang").value,
+  });
+  refresh();
+}
+$("lang").addEventListener("change", pushConfig);
+$("polish").addEventListener("change", pushConfig);
+$("translate").addEventListener("change", pushConfig);
+$("targetLang").addEventListener("change", pushConfig);
 $("btnDictate").addEventListener("click", () => invoke("toggle_dictation").catch(e => setStatus("err", String(e))));
+$("btnCancel").addEventListener("click", () => invoke("cancel_dictation").catch(e => setStatus("err", String(e))));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") invoke("cancel_dictation").catch(() => {});
+});
 
 function barFor(label) {
   const inOb = inOnboarding;
@@ -420,37 +512,67 @@ function barFor(label) {
 
 listen("talkable-status", ({ payload }) => {
   switch (payload.stage) {
-    case "recording":    setStatus("", "Recording… (release the key or click Dictate again)"); break;
+    case "recording":    setStatus("", "Recording… (release the key, click Dictate again, or Esc to cancel — 2 min max)"); break;
     case "transcribing": setStatus("", "Transcribing…"); break;
     case "polishing":    setStatus("", "Polishing with local AI…"); break;
+    case "translating":  setStatus("", "Translating offline…"); break;
+    case "cancelled":
+      setStatus("", "Cancelled.");
+      break;
     case "done":
       setStatus("ok", payload.detail ? payload.text + "\n(" + payload.detail + ")" : payload.text || "Done");
       break;
-    case "error":
+    case "error": {
       setStatus("err", payload.detail || "Error");
+      if (inOnboarding) showObError(payload.detail || "Error");
       break;
+    }
     case "download-start":
       downloading.add(payload.detail === "AI polish model" ? "qwen" : "whisper");
+      showObError("");
       updateDownloadButtons();
-      setStatus("", "Downloading " + payload.detail + "…");
+      setStatus("", "Downloading " + payload.detail + "… (resumes if interrupted)");
       break;
     case "download-progress": {
       const [label, pct] = payload.detail.split("|");
-      const bar = barFor(label);
-      bar.parentElement.classList.add("on");
-      bar.style.width = pct + "%";
-      setStatus("", "Downloading " + label + " — " + pct + "%");
-      if (label.startsWith("transcription")) $("bannerPct").textContent = pct + "%";
+      const which = label.startsWith("AI polish") ? "qwen" : "whisper";
+      if (pct === "-1") {
+        paintDownload(which, 0, true);
+        setStatus("", "Downloading " + label + "…");
+      } else {
+        paintDownload(which, Number(pct), false);
+        setStatus("", "Downloading " + label + " — " + pct + "%");
+        if (label.startsWith("transcription")) $("bannerPct").textContent = pct + "%";
+      }
+      updateDownloadButtons();
       break;
     }
-    case "download-done":
-      setStatus("ok", "Model downloaded.");
+    case "download-done": {
+      const which = (payload.detail || "").startsWith("AI polish") ? "qwen" : "whisper";
+      downloading.delete(which);
+      clearDownloadBar(which);
+      showObError("");
+      setStatus("ok", "Model downloaded. Works offline from now on.");
       refresh();
       break;
+    }
     case "download-error": {
       const parts = (payload.detail || "").split("|");
       const label = parts.shift() || "model";
-      setStatus("err", "Couldn't download " + label + ": " + (parts.join("|") || "error"));
+      const reason = parts.join("|") || "error";
+      const which = label.startsWith("AI polish") ? "qwen" : "whisper";
+      if (reason === "cancelled") {
+        setStatus("", "Download cancelled — resume it anytime.");
+        if (inOnboarding) showObError("Download cancelled — resume it anytime.");
+      } else {
+        const msg = "Couldn't download " + label + ": " + reason + " (resume it to retry)";
+        setStatus("err", msg);
+        if (inOnboarding) showObError(msg);
+      }
+      // Keep the bar if a partial file remains for resume; refresh state.
+      downloading.delete(which);
+      updateDownloadButtons();
+      refresh();
       break;
     }
   }

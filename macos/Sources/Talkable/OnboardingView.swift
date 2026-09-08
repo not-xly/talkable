@@ -190,7 +190,7 @@ struct OnboardingView: View {
                 ChipView(kind: .optional)
             }
             Toggle("Polish with local AI", isOn: $aiEnabled)
-            Text("Without AI: text is pasted as transcribed (basic punctuation: capital letter and period).\n\nWith AI: a small model running **on your Mac** fixes punctuation, accents, capitals and removes fillers like “uh” or “you know”.")
+            Text("Without AI: text is pasted as transcribed (basic punctuation: capital letter and period).\n\nWith AI: a small model running **on your Mac** fixes punctuation, accents, capitals and removes fillers like “uh” or “you know”. Installing it also enables offline translation in Preferences.")
                 .font(.callout)
             if aiEnabled {
                 VStack(alignment: .leading, spacing: 8) {

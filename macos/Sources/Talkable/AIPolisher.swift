@@ -51,6 +51,21 @@ enum AIPolisher {
         }
     }
 
+    /// Translates text offline with the same local model.
+    /// Requires the model to be installed; otherwise returns the input.
+    static func translate(_ text: String, to target: String) async -> String {
+        let capped = String(text.suffix(4000))
+        do {
+            try await prepare()
+            guard let s = session else { return text }
+            let req = "Translate the following text to \(target). Reply with ONLY the translation, no explanations or quotes. /no_think\n\n\(capped)"
+            let reply = try await s.respond(to: req)
+            return sane(reply, fallback: text) ?? text
+        } catch {
+            return text
+        }
+    }
+
     /// Sanity check: if the output drifts too far from the input length,
     /// prefer the raw text.
     private static func sane(_ polished: String, fallback raw: String) -> String? {

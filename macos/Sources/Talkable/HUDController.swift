@@ -113,6 +113,12 @@ final class HUDController {
         show()
     }
 
+    func showTranslating() {
+        dot.color = .systemBlue
+        update("Translating offline…")
+        show()
+    }
+
     func showError(_ message: String) {
         dot.color = .systemYellow
         update(message)

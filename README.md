@@ -18,8 +18,8 @@ I started it because I didn't want to send my voice to a server or pay a monthly
 2. The transcription lands wherever your cursor is, in whatever app you're using.
 3. Nothing is stored or sent anywhere: when you release the key, the audio is gone.
 
-- **macOS** — native app (Swift) with on-device system speech recognition.
-- **Windows & Linux** — Tauri app with whisper.cpp (transcription) + llama.cpp (AI polish), all local. Installers (`.exe` / `.AppImage` / `.deb`) are built by CI on every push to `main`, under the Actions tab.
+- **macOS** — native app (Swift) with on-device system speech recognition. With the AI model installed you also get offline polish + translation.
+- **Windows & Linux** — Tauri app with whisper.cpp (transcription) + Qwen3 (AI polish + offline translation), all local. Installers (`.exe` / `.AppImage` / `.deb`) are built by CI on every push to `main`, under the Actions tab.
 
 ## Why local
 
@@ -41,8 +41,8 @@ Grab the files from the [latest release](https://github.com/not-xly/talkable/rel
 
 | Platform | File |
 |---|---|
-| Windows (x64) | `Talkable_0.3.0_x64-setup.exe` (NSIS installer) |
-| Linux (x86_64) | `Talkable_0.3.0_amd64.AppImage` (portable, ~84 MB) or `Talkable_0.3.0_amd64.deb` (~7 MB + system packages) |
+| Windows (x64) | `Talkable_0.4.0_x64-setup.exe` (NSIS installer) |
+| Linux (x86_64) | `Talkable_0.4.0_amd64.AppImage` (portable, ~84 MB) or `Talkable_0.4.0_amd64.deb` (~7 MB + system packages) |
 | macOS | `Talkable-macOS.zip` (contains `Talkable.app`) |
 
 Bleeding-edge builds from every push are also in [Actions](https://github.com/not-xly/talkable/actions) artifacts (login required, they expire).
@@ -66,7 +66,7 @@ The downloaded models live outside the app, so removing the app alone leaves the
 
 - **Windows**: uninstall from Settings › Apps. The uninstaller asks whether to also delete the downloaded models and settings (they live in `%APPDATA%\talkable`).
 - **Linux**: remove the package with your package manager (or delete the `.AppImage` file). The models and settings are in `~/.local/share/talkable` — delete that folder to reclaim the space.
-- **macOS**: move Talkable.app to the Trash. The AI polish model (~335 MB) is cached in `~/.cache/huggingface/hub` and your settings in `~/Library/Preferences/local.talkable.app.plist` — delete those if you want everything gone.
+- **macOS**: move Talkable.app to the Trash. The AI model (~335 MB) is cached in `~/.cache/huggingface/hub` (older versions used `~/Library/Caches/huggingface` — check both) and your settings in `~/Library/Preferences/local.talkable.app.plist` — delete those if you want everything gone.
 
 ### I want to build it
 
@@ -102,14 +102,16 @@ tauri build          # produces .exe / .AppImage / .deb under target/release/bun
 
 **Windows & Linux:** **right Ctrl** (or **F6** as a fallback). Same gestures: hold to dictate, release to paste, quick tap to toggle. A small floating indicator near the bottom of the screen shows what's happening (recording, transcribing, the final text) without stealing focus. If the global hotkey doesn't respond, the window has a Dictate button; and if auto-typing fails, the text stays in the window so you can copy it by hand.
 
-## Status (v0.3)
+## Status (v0.4)
 
 Already working:
 
-- Global hotkey on all three systems, hold and tap modes.
+- Global hotkey on all three systems, hold and tap modes. Esc cancels dictation.
 - macOS: on-device transcription (Apple Speech), live floating panel, auto-typing with clipboard fallback, preferences and first-run guide. Languages: en-US, es-AR, es-ES, es-MX, es-CO, es-CL, pt-BR, fr-FR, it-IT.
-- Windows & Linux: local transcription with whisper.cpp, optional polish with Qwen3-0.6B, a floating dictation indicator above the desktop, and a first-run guide that requires the transcription model (AI polish stays optional).
-- AI polish (optional): a small model running on your machine fixes punctuation, accents, capitalization and filler words.
+- Windows & Linux: local transcription with whisper.cpp, optional polish + offline translation with Qwen3-0.6B, a floating dictation indicator above the desktop, and a first-run guide that requires the transcription model (AI stays optional).
+- AI polish (optional, Settings toggle): a small model running on your machine fixes punctuation, accents, capitalization and filler words.
+- Offline translation (optional, needs the AI model): translates the dictation to en/es/fr/pt/it/de locally.
+- Resumable, cancellable downloads with size verification; offline indicator; 2-minute dictation cap.
 
 On the way: configurable hotkey, spoken commands, auto-updates. See [docs/ROADMAP.md](docs/ROADMAP.md).
 

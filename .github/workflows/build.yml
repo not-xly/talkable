@@ -30,6 +30,10 @@ jobs:
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
             libasound2-dev libxtst-dev libxi-dev pkg-config cmake
 
+      - name: Run desktop tests
+        working-directory: desktop/src-tauri
+        run: cargo test
+
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli
 
@@ -52,6 +56,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Run macOS tests
+        working-directory: macos
+        run: swift test
 
       - name: Build Talkable.app
         working-directory: macos
