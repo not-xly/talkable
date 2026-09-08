@@ -35,6 +35,8 @@ jobs:
             libasound2-dev libxtst-dev libxi-dev pkg-config cmake
 
       - name: Run desktop tests
+        # See build.yml: Windows debug test binary hits LNK2038 CRT mismatch.
+        if: matrix.os == 'ubuntu-22.04'
         working-directory: desktop/src-tauri
         run: cargo test
 
