@@ -12,13 +12,40 @@ pub struct Recorder {
 }
 
 impl Recorder {
-    pub fn start() -> Result<Self, String> {
+    /// Lists connected input devices by name ("default" is always first).
+    /// cpal 0.18 exposes the name via Display (description() holds details).
+    pub fn list_input_devices() -> Vec<String> {
+        let host = cpal::default_host();
+        let mut names: Vec<String> = host
+            .input_devices()
+            .map(|devs| {
+                devs.map(|d| d.to_string())
+                    .filter(|n| !n.trim().is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        names.sort();
+        names.dedup();
+        let mut out = vec!["default".to_string()];
+        out.extend(names.into_iter().filter(|n| n != "default"));
+        out
+    }
+
+    pub fn start_with(wanted: &str) -> Result<Self, String> {
         use std::sync::atomic::AtomicBool;
 
         let host = cpal::default_host();
-        let device = host
-            .default_input_device()
-            .ok_or_else(|| "No microphone available".to_string())?;
+        // "default" (or empty / unknown) means the system default microphone.
+        let device = if wanted.trim().is_empty() || wanted == "default" {
+            host.default_input_device()
+                .ok_or_else(|| "No microphone available".to_string())?
+        } else {
+            host.input_devices()
+                .map_err(|e| format!("Microphone list: {e}"))?
+                .find(|d| d.to_string() == wanted)
+                .or_else(|| host.default_input_device())
+                .ok_or_else(|| "No microphone available".to_string())?
+        };
         let config = device
             .default_input_config()
             .map_err(|e| format!("Microphone config: {e}"))?;

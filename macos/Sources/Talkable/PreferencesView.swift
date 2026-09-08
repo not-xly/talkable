@@ -16,6 +16,12 @@ struct PreferencesView: View {
                         Text(language.name).tag(language.id)
                     }
                 }
+                Picker("Microphone", selection: $settings.microphoneID) {
+                    ForEach(AudioDeviceList.listMicrophones()) { mic in
+                        Text(mic.name).tag(mic.id)
+                    }
+                }
+                .help("System default follows macOS Settings › Sound › Input.")
                 Toggle("On-device only (private and offline)", isOn: $settings.onDeviceOnly)
                 Toggle("Automatic basic punctuation", isOn: $settings.punctuation)
                 Toggle("Polish with local AI (Qwen3)", isOn: $settings.polishWithAI)

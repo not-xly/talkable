@@ -256,6 +256,15 @@
     </div>
     <div class="row" style="margin-top:10px">
       <label class="switch">
+        Microphone:
+        <select id="mic">
+          <option value="default">System default</option>
+        </select>
+      </label>
+      <span class="muted" id="micHint"></span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="switch">
         <input type="checkbox" id="translate" /> Translate to
         <select id="targetLang">
           <option value="en">English</option>
@@ -459,6 +468,19 @@ async function refresh() {
   if (s.qwenSize) { $("qwenSize").textContent = `(${s.qwenSize})`; $("obQwenSize").textContent = `(${s.qwenSize})`; }
   $("lang").value = s.config.language;
   $("polish").checked = s.config.polish;
+  const mics = Array.isArray(s.microphones) && s.microphones.length ? s.microphones : ["default"];
+  const micSel = $("mic");
+  const prevMic = micSel.value || s.config.microphone || "default";
+  micSel.innerHTML = "";
+  for (const m of mics) {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m === "default" ? "System default" : m;
+    micSel.appendChild(opt);
+  }
+  const want = mics.includes(s.config.microphone) ? s.config.microphone : (mics.includes(prevMic) ? prevMic : "default");
+  micSel.value = want;
+  $("micHint").textContent = mics.length <= 1 ? "" : `${mics.length - 1} connected`;
   $("translate").checked = !!s.config.translate && qwenReady;
   $("translate").disabled = !qwenReady;
   $("targetLang").value = s.config.target_language || "es";
@@ -489,10 +511,12 @@ async function pushConfig() {
     polish: $("polish").checked,
     translate: $("translate").checked,
     targetLanguage: $("targetLang").value,
+    microphone: $("mic").value || "default",
   });
   refresh();
 }
 $("lang").addEventListener("change", pushConfig);
+$("mic").addEventListener("change", pushConfig);
 $("polish").addEventListener("change", pushConfig);
 $("translate").addEventListener("change", pushConfig);
 $("targetLang").addEventListener("change", pushConfig);

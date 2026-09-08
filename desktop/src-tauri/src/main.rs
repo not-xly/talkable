@@ -129,9 +129,15 @@ fn send_cancel(app: &AppHandle) {
 
 fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
     let state = app.state::<DictState>();
+    let wanted_mic = state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .microphone
+        .clone();
     emit(&app, "recording", None, None);
 
-    let recorder = match audio::Recorder::start() {
+    let recorder = match audio::Recorder::start_with(&wanted_mic) {
         Ok(r) => r,
         Err(e) => {
             state.recording.store(false, Ordering::SeqCst);
@@ -352,8 +358,14 @@ fn get_state(app: AppHandle) -> serde_json::Value {
         "qwenSize": models::QWEN_SIZE_LABEL,
         "offlineReady": whisper_ready,
         "networkActive": !downloading.is_empty(),
-        "version": "0.4.0",
+        "microphones": audio::Recorder::list_input_devices(),
+        "version": "0.4.2",
     })
+}
+
+#[tauri::command]
+fn list_microphones() -> Vec<String> {
+    audio::Recorder::list_input_devices()
 }
 
 #[tauri::command]
@@ -363,6 +375,7 @@ fn set_config(
     polish: bool,
     translate: bool,
     target_language: String,
+    microphone: String,
 ) {
     let mut cfg = models::load_config();
     cfg.language = language;
@@ -372,6 +385,12 @@ fn set_config(
     let qwen_ready = models::qwen_model_path().exists();
     cfg.translate = translate && qwen_ready;
     cfg.target_language = target_language;
+    // Unknown microphone names fall back to the system default at record time.
+    cfg.microphone = if microphone.trim().is_empty() {
+        "default".to_string()
+    } else {
+        microphone
+    };
     models::save_config(&cfg);
     // Dictation reads the in-memory config: update it here, otherwise the
     // change doesn't take effect until the app restarts.
@@ -613,7 +632,8 @@ fn main() {
             download_model,
             cancel_download,
             toggle_dictation,
-            cancel_dictation
+            cancel_dictation,
+            list_microphones
         ])
         .setup(move |app| {
             // F6 as a fallback: works on X11, Wayland and Windows.

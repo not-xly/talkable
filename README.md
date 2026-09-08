@@ -41,8 +41,8 @@ Grab the files from the [latest release](https://github.com/not-xly/talkable/rel
 
 | Platform | File |
 |---|---|
-| Windows (x64) | `Talkable_0.4.0_x64-setup.exe` (NSIS installer) |
-| Linux (x86_64) | `Talkable_0.4.0_amd64.AppImage` (portable, ~84 MB) or `Talkable_0.4.0_amd64.deb` (~7 MB + system packages) |
+| Windows (x64) | `Talkable_0.4.2_x64-setup.exe` (NSIS installer) |
+| Linux (x86_64) | `Talkable_0.4.2_amd64.AppImage` (portable, ~84 MB) or `Talkable_0.4.2_amd64.deb` (~7 MB + system packages) |
 | macOS | `Talkable-macOS.zip` (contains `Talkable.app`) |
 
 Bleeding-edge builds from every push are also in [Actions](https://github.com/not-xly/talkable/actions) artifacts (login required, they expire).

@@ -38,6 +38,9 @@ final class SettingsStore: ObservableObject {
     @Published var translateTarget: String {
         didSet { UserDefaults.standard.set(translateTarget, forKey: "translateTarget") }
     }
+    @Published var microphoneID: String {
+        didSet { UserDefaults.standard.set(microphoneID, forKey: "microphoneID") }
+    }
 
     private init() {
         let d = UserDefaults.standard
@@ -51,6 +54,7 @@ final class SettingsStore: ObservableObject {
         let modelLocal = AIPolisher.isModelLocal
         translateEnabled = (d.object(forKey: "translateEnabled") as? Bool ?? false) && modelLocal
         translateTarget = d.string(forKey: "translateTarget") ?? "es"
+        microphoneID = d.string(forKey: "microphoneID") ?? AudioDeviceList.systemDefaultID
     }
 
     /// Picks the default dictation language from the system locale, or US

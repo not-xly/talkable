@@ -29,10 +29,16 @@ pub struct Config {
     pub translate: bool,
     #[serde(default = "default_target_language")]
     pub target_language: String,
+    #[serde(default = "default_microphone")]
+    pub microphone: String,
 }
 
 fn default_target_language() -> String {
     "es".into()
+}
+
+fn default_microphone() -> String {
+    "default".into()
 }
 
 impl Default for Config {
@@ -43,6 +49,7 @@ impl Default for Config {
             onboarding_done: false,
             translate: false,
             target_language: default_target_language(),
+            microphone: default_microphone(),
         }
     }
 }

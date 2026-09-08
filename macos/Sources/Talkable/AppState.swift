@@ -109,6 +109,7 @@ final class AppState: ObservableObject {
         }
         transcriber = t
 
+        audio.preferredMicrophoneID = settings.microphoneID
         audio.onBuffer = { [weak t] buffer in t?.append(buffer) }
         do {
             try audio.start()
