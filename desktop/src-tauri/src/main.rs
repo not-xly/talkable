@@ -127,14 +127,50 @@ fn send_cancel(app: &AppHandle) {
     send_stop(app);
 }
 
+/// How often the HUD preview refreshes, and how much recent audio it reads.
+const PREVIEW_EVERY: Duration = Duration::from_millis(1500);
+const PREVIEW_WINDOW_SECS: u32 = 30;
+/// Minimum idle time between previews, so slow machines aren't pegged.
+const PREVIEW_MIN_GAP: Duration = Duration::from_millis(500);
+
+/// Transcribes the latest audio every ~1.5 s while recording and shows it in
+/// the HUD. Purely visual: what gets pasted always comes from the full final
+/// transcription. Failures are ignored.
+fn spawn_previews(app: AppHandle, tap: audio::Tap, language: String, stop: Arc<AtomicBool>) {
+    let wpath = models::whisper_model_path();
+    if !wpath.exists() {
+        return;
+    }
+    std::thread::spawn(move || {
+        let mut next = Instant::now() + PREVIEW_EVERY;
+        loop {
+            while Instant::now() < next {
+                if stop.load(Ordering::SeqCst) {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            let started = Instant::now();
+            let samples = tap.tail_16k(PREVIEW_WINDOW_SECS);
+            // Under half a second there's nothing worth showing yet.
+            if samples.len() >= 8_000 {
+                if let Some(text) = stt::transcribe_partial(&samples, &language, &wpath, &stop) {
+                    if !text.is_empty() && !stop.load(Ordering::SeqCst) {
+                        hud::partial(&app, &text);
+                    }
+                }
+            }
+            next = (started + PREVIEW_EVERY).max(Instant::now() + PREVIEW_MIN_GAP);
+        }
+    });
+}
+
 fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
     let state = app.state::<DictState>();
-    let wanted_mic = state
-        .config
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .microphone
-        .clone();
+    let (wanted_mic, preview_language) = {
+        let cfg = state.config.lock().unwrap_or_else(|e| e.into_inner());
+        (cfg.microphone.clone(), cfg.language.clone())
+    };
     emit(&app, "recording", None, None);
 
     let recorder = match audio::Recorder::start_with(&wanted_mic) {
@@ -145,6 +181,15 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
             return;
         }
     };
+
+    // Live preview in the HUD; stopped before the final transcription.
+    let stop_previews = Arc::new(AtomicBool::new(false));
+    spawn_previews(
+        app.clone(),
+        recorder.tap(),
+        preview_language,
+        stop_previews.clone(),
+    );
 
     // Record until the key-release order arrives, with a 2-minute safety cap.
     let record_start = Instant::now();
@@ -164,6 +209,7 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
         std::thread::sleep(Duration::from_millis(25));
     }
 
+    stop_previews.store(true, Ordering::SeqCst);
     let samples = recorder.stop();
 
     // Esc / Cancel pressed while recording: discard silently.
@@ -174,26 +220,16 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
         return;
     }
 
-    if hit_duration_limit {
-        state.recording.store(false, Ordering::SeqCst);
-        emit(
-            &app,
-            "error",
-            None,
-            Some("Dictation stopped at the 2-minute limit. Dictate in shorter chunks."),
+    // Hitting the 2-minute cap keeps what was captured instead of discarding
+    // it; the excess (if any) is cut here and the user is told via a note.
+    let mut limit_note: Option<String> = None;
+    let mut samples = samples;
+    if hit_duration_limit || samples.len() > models::MAX_SAMPLES_16K {
+        samples.truncate(models::MAX_SAMPLES_16K);
+        limit_note = Some(
+            "Stopped at the 2-minute limit: pasted what was captured. Dictate in shorter chunks."
+                .to_string(),
         );
-        return;
-    }
-    // Hard cap in samples as well (in case of odd sample rates).
-    if samples.len() > models::MAX_SAMPLES_16K + 16_000 {
-        state.recording.store(false, Ordering::SeqCst);
-        emit(
-            &app,
-            "error",
-            None,
-            Some("Dictation too long (2-minute limit). Dictate in shorter chunks."),
-        );
-        return;
     }
 
     if samples.len() < 1_600 {
@@ -240,7 +276,7 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
     }
 
     // 2) Optional local polish with a small language model.
-    let mut polish_note: Option<String> = None;
+    let mut polish_note: Option<String> = limit_note;
     let polished = if polish_on {
         let qpath = models::qwen_model_path();
         if qpath.exists() {
@@ -250,8 +286,11 @@ fn run_dictation(app: AppHandle, stop_rx: mpsc::Receiver<()>) {
                 Err(_) => raw.clone(),
             }
         } else {
+            let note = "AI polish is on but its model isn't downloaded — pasted the raw text.";
             polish_note = Some(
-                "AI polish is on but its model isn't downloaded — pasted the raw text.".to_string(),
+                polish_note
+                    .map(|n| format!("{n} {note}"))
+                    .unwrap_or_else(|| note.to_string()),
             );
             raw.clone()
         }
@@ -331,8 +370,10 @@ fn cancel_dictation(app: AppHandle) {
     }
 }
 
+// The commands below are `async` so Tauri runs them off the main thread: device
+// enumeration and disk/model checks would otherwise freeze the window.
 #[tauri::command]
-fn get_state(app: AppHandle) -> serde_json::Value {
+async fn get_state(app: AppHandle) -> serde_json::Value {
     let hotkey = app
         .try_state::<DictState>()
         .map(|s| {
@@ -364,12 +405,12 @@ fn get_state(app: AppHandle) -> serde_json::Value {
 }
 
 #[tauri::command]
-fn list_microphones() -> Vec<String> {
+async fn list_microphones() -> Vec<String> {
     audio::Recorder::list_input_devices()
 }
 
 #[tauri::command]
-fn set_config(
+async fn set_config(
     app: AppHandle,
     language: String,
     polish: bool,
@@ -476,6 +517,15 @@ fn download_model(app: AppHandle, which: String) -> Result<(), String> {
         .ok();
 
     std::thread::spawn(move || {
+        // The Qwen model needs its tokenizer too: fetch it here, before
+        // reporting success, instead of during the first dictation.
+        let finish = |app: &AppHandle| -> Result<(), String> {
+            if which == "qwen" {
+                polish::ensure_tokenizer(&models::qwen_tokenizer_path())?;
+            }
+            emit(app, "download-done", None, Some(label));
+            Ok(())
+        };
         let result = (|| -> Result<(), String> {
             emit(&app, "download-start", None, Some(label));
             if let Some(parent) = dest.parent() {
@@ -491,30 +541,34 @@ fn download_model(app: AppHandle, which: String) -> Result<(), String> {
             let resp = req.send().map_err(|e| e.to_string())?;
             let status = resp.status();
             // 206 = resume accepted; 200 = server restarts from zero; 416 = already complete.
-            let (mut file, mut bytes, total, resumed) = if status.as_u16() == 206 {
+            let (mut file, mut bytes, total) = if status.as_u16() == 206 {
                 let remaining = resp.content_length().unwrap_or(0);
                 let f = std::fs::OpenOptions::new()
                     .create(true)
                     .append(true)
                     .open(&tmp)
                     .map_err(|e| e.to_string())?;
-                (f, existing, existing + remaining, true)
+                (f, existing, existing + remaining)
             } else if status.is_success() {
                 if existing > 0 {
                     let _ = std::fs::remove_file(&tmp);
                 }
                 let total = resp.content_length().unwrap_or(0);
                 let f = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
-                (f, 0u64, total, false)
+                (f, 0u64, total)
             } else if status.as_u16() == 416 {
-                // Range beyond EOF: the partial file is actually complete.
+                // Range beyond EOF: the partial file should be complete, but
+                // check the minimum size like the normal path does.
+                let len = std::fs::metadata(&tmp).map(|m| m.len()).unwrap_or(0);
+                if len < min_bytes {
+                    let _ = std::fs::remove_file(&tmp);
+                    return Err(format!("Incomplete download ({len} bytes)"));
+                }
                 std::fs::rename(&tmp, &dest).map_err(|e| e.to_string())?;
-                emit(&app, "download-done", None, Some(label));
-                return Ok(());
+                return finish(&app);
             } else {
                 return Err(format!("Download failed: {status}"));
             };
-            let _ = resumed;
             use std::io::Write;
             let mut reader = resp;
             // Unknown total (no content-length): show indeterminate progress.
@@ -563,8 +617,7 @@ fn download_model(app: AppHandle, which: String) -> Result<(), String> {
                 return Err(format!("Incomplete download ({bytes} bytes)"));
             }
             std::fs::rename(&tmp, &dest).map_err(|e| e.to_string())?;
-            emit(&app, "download-done", None, Some(label));
-            Ok(())
+            finish(&app)
         })();
 
         DOWNLOADING.lock().ok().map(|mut set| set.remove(&which));

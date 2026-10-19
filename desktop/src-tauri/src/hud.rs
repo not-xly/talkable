@@ -1,5 +1,6 @@
-//! Floating dictation overlay: a small, non-focus-stealing pill that shows
-//! what's happening (recording, transcribing, polishing) and the final text.
+//! Floating dictation overlay: a small, non-focus-stealing glass card in the
+//! top-right corner that shows what's happening (recording with live preview
+//! text, transcribing, polishing) and the final text, like the macOS HUD.
 //!
 //! It's a separate transparent, always-on-top, skip-taskbar window. It never
 //! takes keyboard focus (the text must land in the app the user was using),
@@ -9,11 +10,14 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, LogicalPosition, Manager, WebviewUrl, WebviewWindowBuilder};
 
-const HUD_WIDTH: f64 = 340.0;
-const HUD_HEIGHT: f64 = 64.0;
-/// Extra distance above the work-area bottom (in addition to what the
-/// work-area already excludes, e.g. the taskbar).
-const BOTTOM_MARGIN: f64 = 28.0;
+/// Window size, including a transparent margin for the card's soft shadow.
+/// Fits two lines of preview text.
+const HUD_WIDTH: f64 = 380.0;
+const HUD_HEIGHT: f64 = 96.0;
+/// Distance from the work-area's top-right corner (which already excludes
+/// e.g. a top panel or the taskbar).
+const RIGHT_MARGIN: f64 = 8.0;
+const TOP_MARGIN: f64 = 4.0;
 
 const DONE_VISIBLE: Duration = Duration::from_secs(3);
 const ERROR_VISIBLE: Duration = Duration::from_secs(6);
@@ -102,9 +106,9 @@ fn position(window: &tauri::WebviewWindow) {
     let work = monitor.work_area();
     let pos = work.position.to_logical::<f64>(scale);
     let size = work.size.to_logical::<f64>(scale);
-    let x = pos.x + (size.width - HUD_WIDTH) / 2.0;
-    let y = pos.y + size.height - HUD_HEIGHT - BOTTOM_MARGIN;
-    let _ = window.set_position(LogicalPosition::new(x.max(8.0), y.max(8.0)));
+    let x = pos.x + size.width - HUD_WIDTH - RIGHT_MARGIN;
+    let y = pos.y + TOP_MARGIN;
+    let _ = window.set_position(LogicalPosition::new(x.max(pos.x), y));
 }
 
 /// Shows the pill and cancels any pending auto-hide.
@@ -151,4 +155,10 @@ pub fn update(app: &AppHandle, stage: &str, text: Option<&str>, detail: Option<&
         "error" => hide_later(app, ERROR_VISIBLE),
         _ => {}
     }
+}
+
+/// Shows live preview text while recording. The page ignores it once the
+/// stage has moved on, so a late preview can't overwrite the result.
+pub fn partial(app: &AppHandle, text: &str) {
+    let _ = app.emit("hud-partial", serde_json::json!({ "text": text }));
 }

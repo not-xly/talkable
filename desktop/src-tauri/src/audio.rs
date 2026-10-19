@@ -55,7 +55,10 @@ impl Recorder {
         // double-speed.
         let channels = config.channels() as usize;
         let stream_config: cpal::StreamConfig = config.into();
-        let buffer: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
+        // Pre-size for ~10 s so the realtime callback rarely has to reallocate.
+        let buffer: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::with_capacity(
+            sample_rate as usize * 10,
+        )));
         let keep_going = Arc::new(AtomicBool::new(true));
 
         // Every format the platform may hand us. Missing one here made
@@ -113,6 +116,14 @@ impl Recorder {
         })
     }
 
+    /// Read-only handle on the live buffer, for previews while recording.
+    pub fn tap(&self) -> Tap {
+        Tap {
+            buffer: self.buffer.clone(),
+            sample_rate: self.sample_rate,
+        }
+    }
+
     pub fn keep_going(&self) -> Arc<std::sync::atomic::AtomicBool> {
         self.keep_going.clone()
     }
@@ -125,18 +136,45 @@ impl Recorder {
         // Take ownership of the buffer instead of cloning minutes of audio.
         let (samples, rate) = {
             let mut b = self.buffer.lock().map(|mut b| std::mem::take(&mut *b)).unwrap_or_default();
-            // Soft limiter: clamp runaway input to avoid huge allocations.
-            b.iter_mut().for_each(|v| {
-                if *v > 1.0 {
-                    *v = 1.0;
-                } else if *v < -1.0 {
-                    *v = -1.0;
-                }
-            });
+            clamp_full_scale(&mut b);
             (b, self.sample_rate)
         };
         resample_to_16k(&samples, rate)
     }
+}
+
+/// Peeks at a recording in progress without stopping it.
+pub struct Tap {
+    buffer: Arc<Mutex<Vec<f32>>>,
+    sample_rate: u32,
+}
+
+impl Tap {
+    /// Copies the last `max_secs` seconds, resampled to 16 kHz like `stop`.
+    /// Only the tail is copied and resampled, so the cost stays flat however
+    /// long the recording gets. Empty once the recording has stopped.
+    pub fn tail_16k(&self, max_secs: u32) -> Vec<f32> {
+        let rate = self.sample_rate;
+        let want = rate as usize * max_secs as usize;
+        let mut tail = match self.buffer.lock() {
+            Ok(b) => {
+                let mut start = b.len().saturating_sub(want);
+                // Keep integer-ratio groups aligned with the final resample.
+                if rate > 16_000 && rate % 16_000 == 0 {
+                    start -= start % (rate / 16_000) as usize;
+                }
+                b[start..].to_vec()
+            }
+            Err(_) => return Vec::new(),
+        };
+        clamp_full_scale(&mut tail);
+        resample_to_16k(&tail, rate)
+    }
+}
+
+/// Clamp to full scale: gain on some devices pushes samples past ±1.
+fn clamp_full_scale(samples: &mut [f32]) {
+    samples.iter_mut().for_each(|v| *v = v.clamp(-1.0, 1.0));
 }
 
 fn open_stream<S>(
@@ -169,10 +207,19 @@ where
     )
 }
 
-/// Linear resampling (good enough for voice).
+/// Resampling to 16 kHz. Integer ratios (48k, 32k, ...) average each group of
+/// input samples, which low-passes the signal before decimating; other rates
+/// use linear interpolation (good enough for voice).
 fn resample_to_16k(samples: &[f32], from: u32) -> Vec<f32> {
     if from == 16_000 || samples.is_empty() {
         return samples.to_vec();
+    }
+    if from % 16_000 == 0 {
+        let factor = (from / 16_000) as usize;
+        return samples
+            .chunks_exact(factor)
+            .map(|c| c.iter().sum::<f32>() / factor as f32)
+            .collect();
     }
     let ratio = f64::from(from) / 16_000.0;
     let out_len = (samples.len() as f64 / ratio).floor() as usize;
@@ -190,6 +237,29 @@ fn resample_to_16k(samples: &[f32], from: u32) -> Vec<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tap_copies_only_the_tail() {
+        let tap = Tap {
+            buffer: Arc::new(Mutex::new((0..48_000 * 3).map(|i| i as f32).collect())),
+            sample_rate: 48_000,
+        };
+        let out = tap.tail_16k(1);
+        assert_eq!(out.len(), 16_000);
+        // Values are clamped to full scale like the final pass.
+        assert!(out.iter().all(|v| (-1.0..=1.0).contains(v)));
+        // The live buffer is left untouched.
+        assert_eq!(tap.buffer.lock().unwrap().len(), 48_000 * 3);
+    }
+
+    #[test]
+    fn tap_shorter_than_window() {
+        let tap = Tap {
+            buffer: Arc::new(Mutex::new(vec![0.5; 8_000])),
+            sample_rate: 16_000,
+        };
+        assert_eq!(tap.tail_16k(30), vec![0.5; 8_000]);
+    }
 
     #[test]
     fn resample_passthrough_at_16k() {

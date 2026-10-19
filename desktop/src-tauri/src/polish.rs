@@ -32,7 +32,7 @@ static CACHED: Mutex<Option<(PathBuf, PathBuf, Loaded)>> = Mutex::new(None);
 
 /// The tokenizer is tiny (~MB) and downloads itself if missing.
 /// Uses a short timeout so a stalled network never hangs dictation forever.
-fn ensure_tokenizer(path: &Path) -> Result<(), String> {
+pub fn ensure_tokenizer(path: &Path) -> Result<(), String> {
     if path.exists() {
         return Ok(());
     }
@@ -54,7 +54,11 @@ fn ensure_tokenizer(path: &Path) -> Result<(), String> {
     if bytes.is_empty() {
         return Err("Couldn't download the tokenizer: empty file".into());
     }
-    std::fs::write(path, &bytes).map_err(|e| e.to_string())?;
+    // Write to a temporary file and rename: a write interrupted midway must
+    // not leave a truncated tokenizer behind, since `exists()` would accept it.
+    let tmp = path.with_extension("json.part");
+    std::fs::write(&tmp, &bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -78,8 +82,10 @@ fn load(model_path: &Path, tok_path: &Path) -> Result<Loaded, String> {
 }
 
 fn cache_contains(model_path: &Path, tok_path: &Path) -> bool {
+    // try_lock: while a polish holds the model, report "not cached" and let the
+    // prewarm thread wait for the lock, instead of blocking the caller.
     CACHED
-        .lock()
+        .try_lock()
         .map(|g| {
             g.as_ref()
                 .map(|(m, t, _)| m == model_path && *t == tok_path)
@@ -121,7 +127,7 @@ pub fn prewarm(model_path: &Path) {
 /// Polishes raw text locally (greedy, no network). The model loads once and
 /// is reused on every dictation.
 pub fn polish(raw: &str, model_path: &Path) -> Result<String, String> {
-    run_model(raw, model_path, &system_prompt()) 
+    run_model(raw, model_path, SYSTEM_PROMPT) 
 }
 
 /// Translates text to the target language locally with the same Qwen model.
@@ -132,10 +138,6 @@ pub fn translate(text: &str, target: &str, model_path: &Path) -> Result<String, 
     }
     let prompt = format!("{TRANSLATE_PROMPT_PREFIX}{target}{TRANSLATE_PROMPT_SUFFIX}");
     run_model(text, model_path, &prompt)
-}
-
-fn system_prompt() -> String {
-    SYSTEM_PROMPT.to_string()
 }
 
 /// Keeps the tail of very long inputs so the prompt stays inside the model
@@ -170,6 +172,9 @@ fn run_model(input_text: &str, model_path: &Path, system: &str) -> Result<String
         *guard = Some((model_path.to_path_buf(), tok_path, loaded));
     }
     let loaded = &mut guard.as_mut().expect("freshly cached model").2;
+    // The KV cache lives inside the model and candle never resets it on its
+    // own: without this, each dictation attends to the previous ones.
+    loaded.model.clear_kv_cache();
 
     // Truncate very long inputs to stay inside the model context and avoid OOM.
     let raw = truncate_to_token_budget(input_text, loaded, models::MAX_INPUT_TOKENS);
