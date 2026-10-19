@@ -18,34 +18,53 @@ enum AIPolisher {
     corrected text, no explanations or quotes. /no_think
     """
 
+    /// Guards the two statics below: `prepare()` can run from a detached task
+    /// while a dictation also needs the model.
+    private static let stateLock = NSLock()
     private static var session: ChatSession?
+    /// The single in-flight load, shared by every caller so the model is never
+    /// loaded (or downloaded) twice in parallel.
+    private static var loading: Task<ChatSession, Error>?
 
     /// Whether the model is already downloaded on this Mac.
     static var isModelLocal: Bool {
-        session != nil || UserDefaults.standard.bool(forKey: "aiModelDownloaded")
+        stateLock.withLock { session != nil }
+            || UserDefaults.standard.bool(forKey: "aiModelDownloaded")
     }
 
     /// Loads (and downloads if needed) the model. Cached for reuse.
     static func prepare() async throws {
-        if session == nil {
-            let container = try await #huggingFaceLoadModelContainer(
-                configuration: model
-            )
-            session = ChatSession(
-                container,
-                instructions: instructions,
-                generateParameters: GenerateParameters(temperature: 0)
-            )
+        if stateLock.withLock({ session != nil }) { return }
+        let task = stateLock.withLock { () -> Task<ChatSession, Error> in
+            if let loading { return loading }
+            let created = Task { () throws -> ChatSession in
+                let container = try await #huggingFaceLoadModelContainer(configuration: model)
+                return ChatSession(
+                    container,
+                    instructions: instructions,
+                    generateParameters: GenerateParameters(temperature: 0)
+                )
+            }
+            loading = created
+            return created
+        }
+        do {
+            let loaded = try await task.value
+            stateLock.withLock { session = loaded }
             UserDefaults.standard.set(true, forKey: "aiModelDownloaded")
+        } catch {
+            // Let a later call retry instead of reusing the failed load.
+            stateLock.withLock { loading = nil }
+            throw error
         }
     }
 
     /// Returns the polished text; on any problem, the raw text.
     static func polish(_ raw: String) async -> String {
         do {
-            try await prepare()
-            let reply = try await session?.respond(to: raw) ?? raw
-            return sane(reply, fallback: raw) ?? raw
+            // The reply is about as long as the input, so cap it near that.
+            let reply = try await respond(to: raw, maxTokens: raw.count + raw.count / 2 + 32)
+            return sane(reply ?? raw, fallback: raw) ?? raw
         } catch {
             return raw
         }
@@ -56,14 +75,25 @@ enum AIPolisher {
     static func translate(_ text: String, to target: String) async -> String {
         let capped = String(text.suffix(4000))
         do {
-            try await prepare()
-            guard let s = session else { return text }
             let req = "Translate the following text to \(target). Reply with ONLY the translation, no explanations or quotes. /no_think\n\n\(capped)"
-            let reply = try await s.respond(to: req)
+            guard let reply = try await respond(to: req, maxTokens: capped.count * 2 + 64) else {
+                return text
+            }
             return sane(reply, fallback: text) ?? text
         } catch {
             return text
         }
+    }
+
+    /// Runs one independent request. The session keeps its history between
+    /// calls, so it is cleared first: a dictation must not see earlier ones.
+    /// Returns nil when the model isn't available.
+    private static func respond(to input: String, maxTokens: Int) async throws -> String? {
+        try await prepare()
+        guard let session = stateLock.withLock({ session }) else { return nil }
+        await session.clear()
+        session.generateParameters.maxTokens = maxTokens
+        return try await session.respond(to: input)
     }
 
     /// Sanity check: if the output drifts too far from the input length,

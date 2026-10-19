@@ -33,6 +33,9 @@ final class AppState: ObservableObject {
     private var hotkey: HotkeyManager?
     private var recordingStart = Date.distantPast
     private var tapArmsToggle = false
+    /// Bumped by every cancel/fail so a stale `prepareAndRecord` (still waiting
+    /// on a permission prompt) stops instead of opening the mic afterwards.
+    private var dictationID = 0
 
     /// Global key pressed (right ⌘). Hybrid behavior: hold to dictate and
     /// release to paste; a quick tap toggles (tap again to paste).
@@ -72,17 +75,22 @@ final class AppState: ObservableObject {
         partialText = ""
         recordingStart = Date()
         tapArmsToggle = false
-        Task { await prepareAndRecord() }
+        let id = dictationID
+        Task { await prepareAndRecord(id) }
     }
 
-    private func prepareAndRecord() async {
+    private func prepareAndRecord(_ id: Int) async {
         // Fast paths: already-granted permissions return immediately instead
         // of paying a system round-trip before every dictation.
-        guard await SystemPermissions.microphone() else {
+        let micOK = await SystemPermissions.microphone()
+        guard id == dictationID else { return }
+        guard micOK else {
             fail("No microphone access. Grant it in Settings › Privacy & Security › Microphone.")
             return
         }
-        guard await SystemPermissions.speechRecognition() else {
+        let speechOK = await SystemPermissions.speechRecognition()
+        guard id == dictationID else { return }
+        guard speechOK else {
             fail("No speech recognition permission. Check Settings › Privacy & Security › Speech Recognition.")
             return
         }
@@ -134,6 +142,9 @@ final class AppState: ObservableObject {
 
     func stopAndPaste() {
         guard status == .recording else { return }
+        // Released while permissions were still being requested: nothing was
+        // recorded yet, so drop back to idle instead of waiting forever.
+        guard transcriber != nil else { cancel(); return }
         status = .transcribing
         audio.stop()
         if settings.sound { NSSound(named: "Pop")?.play() }
@@ -160,7 +171,8 @@ final class AppState: ObservableObject {
             return
         }
 
-        // 2-minute safety cap: very long dictations would OOM the local model.
+        // Keep only the last 4000 characters (about two minutes of speech) so the
+        // local model's context stays bounded. Recognition itself has no time cap here.
         let capped = TextProcessor.capLength(clean, maxChars: 4000)
         if settings.polishWithAI {
             hud.showPolishing()
@@ -203,6 +215,7 @@ final class AppState: ObservableObject {
     }
 
     func cancel() {
+        dictationID += 1
         audio.stop()
         transcriber?.cancel()
         transcriber = nil
@@ -212,6 +225,7 @@ final class AppState: ObservableObject {
     }
 
     private func fail(_ msg: String) {
+        dictationID += 1
         audio.stop()
         transcriber?.cancel()
         transcriber = nil

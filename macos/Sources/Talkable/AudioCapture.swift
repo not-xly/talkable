@@ -38,6 +38,9 @@ final class AudioCapture: NSObject {
     private let engine = AVAudioEngine()
     private var captureSession: AVCaptureSession?
     private let captureQueue = DispatchQueue(label: "talkable.capture")
+    /// Start/stop of AVCaptureSession block until the hardware responds, so they
+    /// run here instead of on the main thread. Serial, so start always precedes stop.
+    private let controlQueue = DispatchQueue(label: "talkable.capture.control")
     private var usingCaptureSession = false
     var preferredMicrophoneID: String = AudioDeviceList.systemDefaultID
     var onBuffer: ((AVAudioPCMBuffer) -> Void)?
@@ -83,6 +86,15 @@ final class AudioCapture: NSObject {
         }
         session.addInput(input)
         let output = AVCaptureAudioDataOutput()
+        // Ask for one mono, non-interleaved float32 buffer: the conversion in
+        // pcmBuffer then doesn't have to guess the device's layout.
+        output.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsNonInterleaved: true,
+            AVNumberOfChannelsKey: 1,
+        ]
         guard session.canAddOutput(output) else {
             throw NSError(domain: "Talkable", code: 4,
                           userInfo: [NSLocalizedDescriptionKey: "Couldn't open the selected microphone."])
@@ -91,14 +103,15 @@ final class AudioCapture: NSObject {
         output.setSampleBufferDelegate(self, queue: captureQueue)
         usingCaptureSession = true
         captureSession = session
-        session.startRunning()
+        controlQueue.async { session.startRunning() }
     }
 
     func stop() {
         if usingCaptureSession {
-            captureSession?.stopRunning()
+            let finished = captureSession
             captureSession = nil
             usingCaptureSession = false
+            controlQueue.async { finished?.stopRunning() }
             return
         }
         guard engine.isRunning else { return }
@@ -113,25 +126,25 @@ extension AudioCapture: AVCaptureAudioDataOutputSampleBufferDelegate {
         onBuffer?(pcm)
     }
 
-    /// Converts a captured CMSampleBuffer to a float32 non-interleaved PCM buffer.
+    /// Converts a captured CMSampleBuffer to a mono float32 PCM buffer. The
+    /// output is configured in `startCaptureSession` (one non-interleaved
+    /// channel), so the audio list has exactly one buffer.
     static func pcmBuffer(from sampleBuffer: CMSampleBuffer) -> AVAudioPCMBuffer? {
         guard let formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer),
               let asbdPtr = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc) else {
             return nil
         }
-        let asbd = asbdPtr.pointee
-        let sampleRate = asbd.mSampleRate > 0 ? asbd.mSampleRate : 44100
-        let channels = asbd.mChannelsPerFrame > 0 ? asbd.mChannelsPerFrame : 1
-        guard let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: channels, interleaved: false) else {
+        let sampleRate = asbdPtr.pointee.mSampleRate > 0 ? asbdPtr.pointee.mSampleRate : 44100
+        guard let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false) else {
             return nil
         }
         let frameCount = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
         guard frameCount > 0,
-              let pcm = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+              let pcm = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount),
+              let dst = pcm.floatChannelData?[0] else {
             return nil
         }
-        pcm.frameLength = frameCount
-        var audioBufferList = AudioBufferList(mNumberBuffers: 0, mBuffers: AudioBuffer(mNumberChannels: 0, mDataByteSize: 0, mData: nil))
+        var audioBufferList = AudioBufferList()
         var blockBuffer: CMBlockBuffer?
         let status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
             sampleBuffer,
@@ -143,24 +156,15 @@ extension AudioCapture: AVCaptureAudioDataOutputSampleBufferDelegate {
             flags: 0,
             blockBufferOut: &blockBuffer
         )
-        guard status == noErr else { return nil }
-        // Copy planar float32 data when possible.
-        let numBuffers = Int(audioBufferList.mNumberBuffers)
-        withUnsafePointer(to: audioBufferList) { listPtr in
-            let bufferPtr = UnsafeRawPointer(listPtr).assumingMemoryBound(to: AudioBuffer.self).advanced(by: 1)
-            // Note: mBuffers is inline; walk the trailing AudioBuffers manually.
-            let first = withUnsafePointer(to: audioBufferList.mBuffers) { $0 }
-            for i in 0..<numBuffers {
-                let buf = first.advanced(by: i).pointee
-                guard let srcData = buf.mData, buf.mDataByteSize > 0 else { continue }
-                if i < Int(pcm.format.channelCount), let dst = pcm.floatChannelData?[i] {
-                    let frames = min(Int(frameCount), Int(buf.mDataByteSize) / MemoryLayout<Float32>.size)
-                    let byteCount = frames * MemoryLayout<Float32>.size
-                    memcpy(dst, srcData, byteCount)
-                }
-            }
-            _ = bufferPtr
+        // blockBuffer keeps the samples alive until the copy below is done.
+        let buffers = UnsafeMutableAudioBufferListPointer(&audioBufferList)
+        guard status == noErr, buffers.count == 1, let src = buffers[0].mData else {
+            return nil
         }
+        let byteCount = min(Int(buffers[0].mDataByteSize),
+                            Int(frameCount) * MemoryLayout<Float32>.size)
+        memcpy(dst, src, byteCount)
+        pcm.frameLength = AVAudioFrameCount(byteCount / MemoryLayout<Float32>.size)
         return pcm
     }
 }
