@@ -1,40 +1,48 @@
 import SwiftUI
 
-/// Shared design tokens: the app's palette and type styles, used by the
-/// setup guide and preferences so both platforms share one visual language.
+/// Shared design tokens and surfaces for the setup guide and preferences.
+///
+/// Visual language: the same "liquid glass" as the dictation HUD
+/// (HUDController / desktop/ui/hud.html). On macOS 26+ cards and the main
+/// buttons use SwiftUI's `glassEffect` / glass button styles; on macOS 14–15
+/// they fall back to `.ultraThinMaterial` with rounded corners and a thin
+/// edge. Colours are semantic so light/dark mode and "Increase contrast" are
+/// handled by the system; "Reduce transparency" swaps glass for a solid fill.
 enum XlyTheme {
-    // Palette
-    static let background = Color(hex: 0xF7F7F5)      // general background
-    static let surface = Color(hex: 0xFFFFFF)         // floating surface
-    static let text = Color(hex: 0x37352F)            // primary text
-    static let textSecondary = Color(hex: 0x787774)   // secondary text
-    static let placeholder = Color(hex: 0xB9B7B2)
-    static let border = Color(hex: 0xE9E9E7)
-    static let hover = Color(hex: 0x37352F, alpha: 0.06)
-    static let active = Color(hex: 0x37352F, alpha: 0.09)
-    static let accent = Color(hex: 0x2383E2)
-    static let accentSoft = Color(hex: 0x2383E2, alpha: 0.14)
-    static let accentHover = Color(hex: 0x1E73C6)
-    static let danger = Color(hex: 0xE03E3E)
-    static let dangerSoft = Color(hex: 0xE03E3E, alpha: 0.10)
-    static let warnBackground = Color(hex: 0xFBF3DB)
-    static let warnText = Color(hex: 0x5F4C1D)
-    static let warnBorder = Color(hex: 0xF0E2B6)
-    static let dark = Color(hex: 0x37352F)            // dark buttons
-    static let darkHover = Color(hex: 0x000000)
+    // Palette (semantic, adapts to light/dark and accessibility settings)
+    static let text = Color.primary
+    static let textSecondary = Color.secondary
+    static let border = Color.primary.opacity(0.12)
+    static let hover = Color.primary.opacity(0.06)
+    static let accent = Color.accentColor
+    static let accentSoft = Color.accentColor.opacity(0.16)
+    static let danger = Color.red
+    static let warnText = Color.orange
+
+    /// Corner radius of glass cards (the HUD uses 24 for a single-line pill;
+    /// multi-row cards read better slightly tighter).
+    static let cardRadius: CGFloat = 18
 
     static let mono = Font.system(.body, design: .monospaced)
 }
 
-extension Color {
-    init(hex: UInt32, alpha: Double = 1) {
-        self.init(
-            .sRGB,
-            red: Double((hex >> 16) & 0xFF) / 255,
-            green: Double((hex >> 8) & 0xFF) / 255,
-            blue: Double(hex & 0xFF) / 255,
-            opacity: alpha
-        )
+/// Window backdrop: the system window colour with a faint accent wash, so the
+/// glass cards have something to refract (mirrors the desktop UI's page wash).
+struct GlassBackdrop: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            if !reduceTransparency {
+                LinearGradient(
+                    colors: [XlyTheme.accent.opacity(0.10), .clear, Color.green.opacity(0.05)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
+        .ignoresSafeArea()
     }
 }
 
@@ -72,64 +80,73 @@ struct ChipView: View {
         Text(kind.label)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(kind.foreground)
-            .padding(.horizontal, 7)
+            .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .background(kind.background, in: RoundedRectangle(cornerRadius: 5))
+            .background(kind.background, in: Capsule())
     }
 }
 
-/// The primary button style: dark surface, white text (xlyUI "dark button").
-struct DarkButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.callout.weight(.medium))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(configuration.isPressed ? XlyTheme.darkHover : XlyTheme.dark)
-            )
-    }
-}
-
-/// Secondary button: white surface with a hairline border.
-struct GhostButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.callout)
-            .foregroundStyle(XlyTheme.text)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(configuration.isPressed ? XlyTheme.hover : XlyTheme.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(XlyTheme.border)
-            )
-    }
-}
-
-/// White card with hairline border, the standard surface of the design.
-struct CardBackground: ViewModifier {
+/// Glass card: the standard surface of the design.
+struct GlassCard: ViewModifier {
     var padding: CGFloat = 14
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     func body(content: Content) -> some View {
-        content
+        let shape = RoundedRectangle(cornerRadius: XlyTheme.cardRadius, style: .continuous)
+        let padded = content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(XlyTheme.surface, in: RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(XlyTheme.border)
-            )
+
+        if reduceTransparency {
+            padded
+                .background(Color(nsColor: .controlBackgroundColor), in: shape)
+                .overlay(shape.strokeBorder(XlyTheme.border))
+        } else if #available(macOS 26.0, *) {
+            padded
+                .glassEffect(.regular, in: shape)
+        } else {
+            padded
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.10), radius: 12, y: 4)
+        }
+    }
+}
+
+/// Primary action: prominent glass on macOS 26+, prominent bordered before.
+struct PrimaryButtonModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.buttonStyle(.glassProminent).controlSize(.large)
+        } else {
+            content.buttonStyle(.borderedProminent).controlSize(.large)
+        }
+    }
+}
+
+/// Secondary action: glass on macOS 26+, bordered before.
+struct SecondaryButtonModifier: ViewModifier {
+    var large = false
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.buttonStyle(.glass).controlSize(large ? .large : .regular)
+        } else {
+            content.buttonStyle(.bordered).controlSize(large ? .large : .regular)
+        }
     }
 }
 
 extension View {
     func card(padding: CGFloat = 14) -> some View {
-        modifier(CardBackground(padding: padding))
+        modifier(GlassCard(padding: padding))
+    }
+
+    func primaryButton() -> some View {
+        modifier(PrimaryButtonModifier())
+    }
+
+    func secondaryButton(large: Bool = false) -> some View {
+        modifier(SecondaryButtonModifier(large: large))
     }
 }

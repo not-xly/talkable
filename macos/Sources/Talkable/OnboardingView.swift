@@ -3,7 +3,7 @@ import AVFoundation
 import Speech
 
 /// First-run setup: welcome, required permissions, the optional AI polish and
-/// the hotkey explanation. Follows the shared design language (XlyTheme).
+/// the hotkey explanation. Follows the shared glass design language (XlyTheme).
 ///
 /// Gating: the transcription path (microphone + speech recognition) is
 /// required before setup can be completed; the AI polish model is optional.
@@ -40,6 +40,8 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 32)
             .padding(.top, 20)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Step \(step + 1) of \(totalSteps)")
 
             Group {
                 switch step {
@@ -61,16 +63,16 @@ struct OnboardingView: View {
                 HStack {
                     if step > 0 {
                         Button("Back") { step -= 1 }
-                            .buttonStyle(GhostButtonStyle())
+                            .secondaryButton(large: true)
                     }
                     Spacer()
                     if step < totalSteps - 1 {
                         Button(step == 0 ? "Get started" : "Next") { step += 1 }
-                            .buttonStyle(DarkButtonStyle())
+                            .primaryButton()
                             .keyboardShortcut(.return)
                     } else {
                         Button("Done, let's dictate!") { finish() }
-                            .buttonStyle(DarkButtonStyle())
+                            .primaryButton()
                             .keyboardShortcut(.return)
                             .disabled(!transcriptionReady)
                     }
@@ -79,7 +81,7 @@ struct OnboardingView: View {
             .padding(20)
         }
         .frame(width: 540, height: 520)
-        .background(XlyTheme.background)
+        .background(GlassBackdrop())
         .onAppear {
             micOk = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
             speechOk = SFSpeechRecognizer.authorizationStatus() == .authorized
@@ -145,15 +147,13 @@ struct OnboardingView: View {
                 }
             }
             .card(padding: 0)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
 
             HStack(spacing: 10) {
                 if !appState.hotkeyActive {
                     Button("Grant the key permissions, then retry hotkey") {
                         _ = appState.installHotkeys()
                     }
-                    .buttonStyle(GhostButtonStyle())
-                    .font(.callout)
+                    .secondaryButton()
                 }
                 Spacer()
             }
@@ -172,8 +172,8 @@ struct OnboardingView: View {
                 Text(text).font(.callout)
                 if !ok {
                     Button("Grant", action: action)
-                        .font(.caption)
-                        .buttonStyle(GhostButtonStyle())
+                        .secondaryButton()
+                        .controlSize(.small)
                 }
             }
             Spacer()
@@ -217,7 +217,7 @@ struct OnboardingView: View {
                                 downloadingAI = false
                             }
                         }
-                        .buttonStyle(GhostButtonStyle())
+                        .secondaryButton()
                         if let aiError {
                             Text("Couldn't download: \(aiError). You can retry later in Preferences.")
                                 .font(.caption)

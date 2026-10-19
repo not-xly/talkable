@@ -4,121 +4,212 @@
 <meta charset="utf-8" />
 <title>Talkable</title>
 <style>
-  /* Design language: xlyUI palette + type. */
+  /* Design language: the same "liquid glass" as the HUD (hud.html) —
+     translucent tinted cards, blur(24px) saturate(180%), a thin
+     semitransparent edge, soft shadow, system type. The page background is a
+     faint wash so the glass has something to refract; every tint is opaque
+     enough to stay readable where the engine can't blur. */
   :root {
-    --bg: #f7f7f5;
-    --surface: #ffffff;
-    --text: #37352f;
-    --text-2: #787774;
-    --placeholder: #b9b7b2;
-    --border: #e9e9e7;
-    --hover: rgba(55, 53, 47, 0.06);
-    --active: rgba(55, 53, 47, 0.09);
-    --accent: #2383e2;
-    --accent-soft: rgba(35, 131, 226, 0.14);
-    --accent-hover: #1e73c6;
-    --danger: #e03e3e;
-    --danger-soft: rgba(224, 62, 62, 0.1);
-    --danger-hover: #c93636;
-    --warn-bg: #fbf3db;
-    --warn-text: #5f4c1d;
-    --warn-border: #f0e2b6;
-    --dark: #37352f;
-    --dark-hover: #000000;
-    color-scheme: light;
+    color-scheme: light dark;
+    --bg: #eef0f4;
+    --wash-a: rgba(10, 132, 255, 0.10);
+    --wash-b: rgba(48, 209, 88, 0.06);
+    --glass: rgba(250, 250, 252, 0.80);
+    --glass-edge: rgba(255, 255, 255, 0.75);
+    --glass-rim: rgba(0, 0, 0, 0.10);
+    --sheen: rgba(255, 255, 255, 0.55);
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.10), 0 1px 3px rgba(0, 0, 0, 0.08);
+    --text: #1d1d1f;
+    --text-2: rgba(29, 29, 31, 0.66);
+    --hairline: rgba(0, 0, 0, 0.10);
+    --fill: rgba(0, 0, 0, 0.05);
+    --fill-hover: rgba(0, 0, 0, 0.09);
+    --field: rgba(255, 255, 255, 0.70);
+    /* Accent: the HUD's "busy" blue, darkened slightly so white text on it
+       keeps AA contrast. */
+    --accent: #0071e3;
+    --accent-hover: #0062c4;
+    --accent-text: #0066cc;
+    --accent-soft: rgba(10, 132, 255, 0.14);
+    --danger: #d70015;
+    --danger-soft: rgba(255, 69, 58, 0.12);
+    --warn: #ff9f0a;
+    --warn-text: #7a4b00;
+    --warn-soft: rgba(255, 159, 10, 0.16);
+    --ok: #248a3d;
+    --disabled-bg: rgba(0, 0, 0, 0.08);
+    --disabled-text: rgba(29, 29, 31, 0.38);
+    --radius: 24px;
+    --radius-inner: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141417;
+      --wash-a: rgba(10, 132, 255, 0.16);
+      --wash-b: rgba(94, 92, 230, 0.10);
+      --glass: rgba(30, 30, 34, 0.74);
+      --glass-edge: rgba(255, 255, 255, 0.22);
+      --glass-rim: rgba(0, 0, 0, 0.35);
+      --sheen: rgba(255, 255, 255, 0.10);
+      --shadow: 0 8px 26px rgba(0, 0, 0, 0.40), 0 1px 3px rgba(0, 0, 0, 0.30);
+      --text: #f5f5f7;
+      --text-2: rgba(245, 245, 247, 0.66);
+      --hairline: rgba(255, 255, 255, 0.12);
+      --fill: rgba(255, 255, 255, 0.07);
+      --fill-hover: rgba(255, 255, 255, 0.12);
+      --field: rgba(255, 255, 255, 0.08);
+      --accent: #0a74da;
+      --accent-hover: #0a84ff;
+      --accent-text: #4aa3ff;
+      --accent-soft: rgba(10, 132, 255, 0.22);
+      --danger: #ff6961;
+      --danger-soft: rgba(255, 69, 58, 0.18);
+      --warn-text: #ffcc80;
+      --warn-soft: rgba(255, 159, 10, 0.18);
+      --ok: #30d158;
+      --disabled-bg: rgba(255, 255, 255, 0.08);
+      --disabled-text: rgba(245, 245, 247, 0.38);
+    }
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; padding: 24px;
-    background: var(--bg); color: var(--text);
-    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
-      Helvetica, "Apple Color Emoji", Arial, sans-serif;
+    min-height: 100vh;
+    color: var(--text);
+    background: var(--bg);
+    background:
+      radial-gradient(60% 50% at 0% 0%, var(--wash-a), transparent 70%),
+      radial-gradient(55% 45% at 100% 100%, var(--wash-b), transparent 70%),
+      var(--bg);
+    background-attachment: fixed;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
+      "Segoe UI", Ubuntu, Cantarell, "Noto Sans", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
     font-size: 16px; line-height: 1.5;
   }
-  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
-  .sub { color: var(--text-2); font-size: 14px; margin-top: 2px; }
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 16px; margin-top: 14px;
+  h1 { font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.015em; }
+  .sub { color: var(--text-2); font-size: 14px; margin-top: 4px; }
+
+  /* The glass surface, shared by cards, onboarding boxes and the banner. */
+  .card, .step .box, .banner {
+    position: relative;
+    background: var(--glass);
+    background: linear-gradient(180deg, var(--sheen), transparent 40%), var(--glass);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--shadow), inset 0 0 0 0.5px var(--glass-rim),
+      inset 0 1px 0 var(--sheen);
   }
-  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 10px; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .card {
+    border-radius: var(--radius); padding: 18px 20px; margin-top: 16px;
+  }
+  .card h2 {
+    font-size: 13px; font-weight: 600; margin: 0 0 12px;
+    color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .muted { color: var(--text-2); font-size: 13px; }
   small { color: var(--text-2); }
 
   button {
-    border: 0; border-radius: 8px; padding: 7px 14px;
-    font-size: 14px; font-family: inherit; cursor: pointer;
-    background: var(--dark); color: #fff;
+    border: 0; border-radius: 999px; padding: 7px 16px;
+    font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer;
+    background: var(--accent); color: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
   }
-  button:hover:not(:disabled) { background: var(--dark-hover); }
-  button:disabled { background: var(--placeholder); cursor: default; }
+  button:hover:not(:disabled) { background: var(--accent-hover); }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled {
+    background: var(--disabled-bg); color: var(--disabled-text);
+    box-shadow: none; cursor: default;
+  }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent-hover);
+    outline: 3px solid color-mix(in srgb, var(--accent-hover) 45%, transparent);
+    outline-offset: 2px;
+  }
   button.ghost {
-    background: transparent; color: var(--text);
-    border: 1px solid var(--border);
+    background: var(--fill); color: var(--text);
+    border: 1px solid var(--hairline); box-shadow: none;
   }
-  button.ghost:hover:not(:disabled) { background: var(--hover); }
+  button.ghost:hover:not(:disabled) { background: var(--fill-hover); }
   button.link {
-    background: transparent; color: var(--accent);
-    padding: 4px 6px;
+    background: transparent; color: var(--accent-text);
+    padding: 4px 10px; box-shadow: none;
   }
-  button.link:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-hover); }
+  button.link:hover:not(:disabled) { background: var(--accent-soft); }
 
   /* Chips: Required / Optional tags. */
   .chip {
-    display: inline-block; border-radius: 5px; padding: 1px 8px;
+    display: inline-block; border-radius: 999px; padding: 1px 9px;
     font-size: 12px; font-weight: 600; vertical-align: 1px;
   }
-  .chip.required { background: var(--accent-soft); color: var(--accent); }
-  .chip.optional { background: var(--hover); color: var(--text-2); }
+  .chip.required { background: var(--accent-soft); color: var(--accent-text); }
+  .chip.optional { background: var(--fill); color: var(--text-2); }
 
   .status {
-    border: 1px solid var(--border); border-radius: 8px;
+    border: 1px solid var(--hairline); border-radius: var(--radius-inner);
+    background: var(--field);
     padding: 10px 12px; min-height: 56px; max-height: 200px; overflow: auto; font-size: 14px;
     white-space: pre-wrap; word-break: break-word;
   }
-  .status.ok { border-color: var(--accent); background: var(--accent-soft); }
+  /* Plain fallbacks first for engines without color-mix() (older WebKitGTK). */
+  .status.ok { border-color: var(--ok); background: var(--accent-soft); }
   .status.err { border-color: var(--danger); background: var(--danger-soft); }
+  .status.ok { border-color: color-mix(in srgb, var(--ok) 55%, transparent); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+  .status.err { border-color: color-mix(in srgb, var(--danger) 55%, transparent); background: var(--danger-soft); }
 
-  .barwrap { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 10px; display: none; }
+  .barwrap { height: 6px; background: var(--fill-hover); border-radius: 3px; overflow: hidden; margin-top: 10px; display: none; }
   .barwrap.on { display: block; }
-  .barwrap > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .barwrap > div { height: 100%; width: 0; background: var(--accent-hover); border-radius: 3px; transition: width .2s; }
   .barwrap.indet > div { width: 40% !important; animation: indet 1.2s ease-in-out infinite; }
   @keyframes indet { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
-  .offline { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 5px; padding: 1px 8px; margin-left: 8px; }
-  .offline.ok { background: var(--accent-soft); color: var(--accent); }
-  .offline.busy { background: var(--warn-bg); color: var(--warn-text); }
-  .ob-error { display: none; font-size: 13px; color: var(--danger); background: var(--danger-soft); border-radius: 8px; padding: 8px 10px; margin-top: 10px; }
+  .offline { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 10px; margin-left: 8px; vertical-align: 3px; letter-spacing: 0; }
+  .offline.ok { background: var(--accent-soft); color: var(--accent-text); }
+  .offline.busy { background: var(--warn-soft); color: var(--warn-text); }
+  .ob-error { display: none; font-size: 13px; color: var(--danger); background: var(--danger-soft); border-radius: var(--radius-inner); padding: 8px 12px; margin-top: 10px; }
   .ob-error.on { display: block; }
 
-  .hint { font-size: 13px; color: var(--text-2); margin-top: 8px; }
-  .ready { color: var(--accent); font-weight: 600; }
+  .hint { font-size: 13px; color: var(--text-2); margin-top: 10px; }
+  .ready { color: var(--ok); font-weight: 600; }
   .missing { color: var(--text-2); font-weight: 600; }
   .modelrow { padding: 8px 0; }
-  .modelrow + .modelrow { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 14px; }
+  .modelrow + .modelrow { border-top: 1px solid var(--hairline); margin-top: 8px; padding-top: 14px; }
 
   select {
-    padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit;
+    padding: 6px 12px; border-radius: 10px; border: 1px solid var(--hairline);
+    background: var(--field); color: var(--text); font-size: 14px; font-family: inherit;
   }
-  select:hover { background: var(--hover); }
-  label.switch { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  select:hover:not(:disabled) { background: var(--fill-hover); }
+  select:disabled { color: var(--disabled-text); }
+  label.switch { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; flex-wrap: wrap; }
   input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
 
   /* Warning banner shown when the required model is missing. */
   .banner {
     display: none;
-    background: var(--warn-bg); color: var(--warn-text);
-    border: 1px solid var(--warn-border); border-radius: 10px;
-    padding: 12px 14px; margin-top: 14px; font-size: 14px;
+    background: var(--glass);
+    background: linear-gradient(180deg, var(--sheen), transparent 40%),
+      linear-gradient(var(--warn-soft), var(--warn-soft)), var(--glass);
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 14px 18px; margin-top: 16px; font-size: 14px;
   }
+  .banner b { color: var(--warn-text); }
   .banner.on { display: block; }
-  .banner .row { margin-top: 8px; }
-  .banner button { background: var(--warn-text); font-size: 13px; padding: 5px 12px; }
+  .banner .row { margin-top: 10px; }
+  .banner button { font-size: 13px; padding: 5px 14px; }
 
   /* ---- Onboarding (first-run setup) ---- */
   #onboarding {
-    position: fixed; inset: 0; background: var(--bg); z-index: 50;
+    position: fixed; inset: 0; z-index: 50;
+    background: var(--bg);
+    background:
+      radial-gradient(60% 50% at 0% 0%, var(--wash-a), transparent 70%),
+      radial-gradient(55% 45% at 100% 100%, var(--wash-b), transparent 70%),
+      var(--bg);
     display: none; flex-direction: column; padding: 28px;
   }
   #onboarding.on { display: flex; }
@@ -126,25 +217,40 @@
   /* .step sets display:flex; this must win over it. */
   .step.hidden { display: none; }
   .steps { display: flex; gap: 8px; justify-content: center; margin-bottom: 26px; }
-  .steps span { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
-  .steps span.on { background: var(--accent); }
-  .step { flex: 1; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
-  .step h2 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
-  .step p { font-size: 15px; margin: 0; }
-  .step .box {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 14px;
+  .steps span { width: 10px; height: 10px; border-radius: 50%; background: var(--fill-hover); transition: background-color 0.2s ease, box-shadow 0.2s ease; }
+  .steps span.on {
+    background: var(--accent-hover);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-hover) 22%, transparent);
   }
+  .step { flex: 1; display: flex; flex-direction: column; gap: 14px; overflow: auto; padding: 2px; }
+  .step h2 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.015em; }
+  .step p { font-size: 15px; margin: 0; }
+  .step .box { border-radius: 20px; padding: 16px 18px; }
   .nav { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; gap: 10px; }
   .nav .spacer { flex: 1; }
   #obGate { color: var(--text-2); font-size: 13px; text-align: right; }
   .keycap {
-    display: inline-block; border: 1px solid var(--border); border-radius: 8px;
+    display: inline-block; border: 1px solid var(--glass-edge); border-radius: 14px;
     padding: 10px 24px; font-size: 18px; font-weight: 600;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    background: var(--surface); box-shadow: 0 1px 0 var(--border);
+    font-family: ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, Consolas, monospace;
+    background: var(--glass);
+    background: linear-gradient(180deg, var(--sheen), transparent 60%), var(--glass);
+    box-shadow: var(--shadow), inset 0 0 0 0.5px var(--glass-rim), inset 0 -2px 0 var(--hairline);
   }
   .center { text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; }
+    button:active:not(:disabled) { transform: none; }
+    /* Indeterminate progress: a static partial bar instead of a sweep. */
+    .barwrap.indet > div { animation: none; margin-left: 0; }
+  }
+  /* Users who ask for more contrast get solid surfaces and firmer edges. */
+  @media (prefers-contrast: more) {
+    :root { --glass: Canvas; --sheen: transparent; --hairline: CanvasText; --glass-edge: CanvasText; }
+    .card, .step .box, .banner { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
 </style>
 </head>
 <body>
