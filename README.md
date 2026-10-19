@@ -49,7 +49,7 @@ Bleeding-edge builds from every push are also in [Actions](https://github.com/no
 
 Notes per system:
 
-- **Windows**: on first launch the app downloads the transcription model (~145 MB, required — setup can't finish without it) and, if you want AI polish, the polish model (~400 MB, optional). Afterwards it works offline. A small floating indicator shows what's happening while you dictate. If SmartScreen warns you: More info → Run anyway (unsigned build for now).
+- **Windows**: on first launch the app downloads the transcription model (~145 MB, required — setup can't finish without it) and, if you want AI polish, the polish model (~400 MB, optional). Afterwards it works offline. A small floating panel shows what's happening and the text as you speak. If SmartScreen warns you: More info → Run anyway (unsigned build for now).
 - **Linux**: an **X11** session is required to type into other apps, plus the `libwebkit2gtk-4.1` package. On Wayland, dictate with the Dictate button and copy the text by hand.
 - **macOS**: being an unsigned build for now, right-click → Open on first launch (or allow it in Settings › Privacy & Security). Then grant what it asks for:
 
@@ -100,7 +100,7 @@ tauri build          # produces .exe / .AppImage / .deb under target/release/bun
 
 **macOS:** hold **right ⌘** to dictate, release to paste. A quick tap starts, another tap pastes.
 
-**Windows & Linux:** **right Ctrl** (or **F6** as a fallback). Same gestures: hold to dictate, release to paste, quick tap to toggle. A small floating indicator near the bottom of the screen shows what's happening (recording, transcribing, the final text) without stealing focus. If the global hotkey doesn't respond, the window has a Dictate button; and if auto-typing fails, the text stays in the window so you can copy it by hand.
+**Windows & Linux:** **right Ctrl** (or **F6** as a fallback). Same gestures: hold to dictate, release to paste, quick tap to toggle. A small floating panel at the top right of the screen shows what's happening and the text as you speak, without stealing focus. If the global hotkey doesn't respond, the window has a Dictate button; and if auto-typing fails, the text stays in the window so you can copy it by hand.
 
 ## Status (v0.4)
 
@@ -108,10 +108,10 @@ Already working:
 
 - Global hotkey on all three systems, hold and tap modes. Esc cancels dictation.
 - macOS: on-device transcription (Apple Speech), live floating panel, auto-typing with clipboard fallback, preferences and first-run guide. Languages: en-US, es-AR, es-ES, es-MX, es-CO, es-CL, pt-BR, fr-FR, it-IT.
-- Windows & Linux: local transcription with whisper.cpp, optional polish + offline translation with Qwen3-0.6B, a floating dictation indicator above the desktop, and a first-run guide that requires the transcription model (AI stays optional).
+- Windows & Linux: local transcription with whisper.cpp, optional polish + offline translation with Qwen3-0.6B, a floating dictation panel with live text above the desktop, and a first-run guide that requires the transcription model (AI stays optional).
 - AI polish (optional, Settings toggle): a small model running on your machine fixes punctuation, accents, capitalization and filler words.
 - Offline translation (optional, needs the AI model): translates the dictation to en/es/fr/pt/it/de locally.
-- Resumable, cancellable downloads with size verification; offline indicator; 2-minute dictation cap.
+- Live text preview while you speak (macOS and Windows/Linux); resumable, cancellable downloads with size verification; offline indicator; dictations over 2 minutes paste what was captured, with a note.
 
 On the way: configurable hotkey, spoken commands, auto-updates. See [docs/ROADMAP.md](docs/ROADMAP.md).
 

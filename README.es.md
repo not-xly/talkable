@@ -49,7 +49,7 @@ También hay builds de cada push en los artefactos de [Actions](https://github.c
 
 Detalles por sistema:
 
-- **Windows**: la primera vez, la app descarga el modelo de transcripción (~145 MB, obligatorio: la configuración no se puede completar sin él) y, si querés pulido con IA, el modelo de pulido (~400 MB, opcional). Después funciona offline. Un indicador flotante pequeño muestra qué está pasando mientras dictás. Si SmartScreen avisa al instalar: Más información → Ejecutar de todas formas (build sin firmar de momento).
+- **Windows**: la primera vez, la app descarga el modelo de transcripción (~145 MB, obligatorio: la configuración no se puede completar sin él) y, si querés pulido con IA, el modelo de pulido (~400 MB, opcional). Después funciona offline. Un panel flotante pequeño muestra qué está pasando y el texto mientras hablás. Si SmartScreen avisa al instalar: Más información → Ejecutar de todas formas (build sin firmar de momento).
 - **Linux**: hace falta sesión **X11** para escribir en otras apps, más el paquete `libwebkit2gtk-4.1`. En Wayland se dicta con el botón Dictar y el texto se copia a mano.
 - **macOS**: al ser una build sin firmar, la primera vez hacé clic derecho → Abrir (o permitirla en Ajustes › Privacidad y seguridad). Después dale los permisos que pide:
 
@@ -100,7 +100,7 @@ tauri build          # genera .exe / .AppImage / .deb en target/release/bundle
 
 **macOS:** mantené **⌘ derecho** para dictar y soltá para pegar. Un toque rápido empieza, otro toque pega.
 
-**Windows y Linux:** **Ctrl derecho** (o **F6** como alternativa). Mismo gesto: mantener para dictar, soltar para pegar, toque rápido para alternar. Un indicador flotante cerca de la parte inferior de la pantalla muestra qué está pasando (grabando, transcribiendo, el texto final) sin robar el foco. Si el atajo global no responde, la ventana trae un botón Dictar; y si el tecleo automático falla, el texto queda en la ventana para copiarlo a mano.
+**Windows y Linux:** **Ctrl derecho** (o **F6** como alternativa). Mismo gesto: mantener para dictar, soltar para pegar, toque rápido para alternar. Un panel flotante arriba a la derecha de la pantalla muestra qué está pasando y el texto mientras hablás, sin robar el foco. Si el atajo global no responde, la ventana trae un botón Dictar; y si el tecleo automático falla, el texto queda en la ventana para copiarlo a mano.
 
 ## Estado (v0.3)
 
@@ -108,7 +108,7 @@ Ya funciona:
 
 - Atajo global en los tres sistemas, con modo mantener y modo toque.
 - macOS: transcripción en el dispositivo (Apple Speech), panel flotante en vivo, auto-escritura con fallback al portapapeles, preferencias y guía inicial. Idiomas: en-US, es-AR, es-ES, es-MX, es-CO, es-CL, pt-BR, fr-FR, it-IT.
-- Windows y Linux: transcripción local con whisper.cpp, pulido opcional con Qwen3-0.6B, un indicador flotante de dictado sobre el escritorio y una guía inicial que exige el modelo de transcripción (el pulido con IA queda opcional).
+- Windows y Linux: transcripción local con whisper.cpp, pulido opcional con Qwen3-0.6B, un panel flotante de dictado con texto en vivo sobre el escritorio y una guía inicial que exige el modelo de transcripción (el pulido con IA queda opcional).
 - Pulido con IA (opcional): un modelo chico corriendo en tu máquina arregla puntuación, tildes, mayúsculas y muletillas.
 
 En camino: atajo configurable, comandos de voz, auto-actualizaciones. Detalle en [docs/ROADMAP.md](docs/ROADMAP.md).

@@ -1,6 +1,13 @@
 # Roadmap
 
-## v0.4.0 — current
+## Unreleased
+
+- Live text preview while you speak on Windows/Linux (previews every ~1.5 s, last 30 s of audio), matching macOS
+- HUD moved to the top right on Windows/Linux; Liquid Glass style (native on macOS 26+, translucent card elsewhere)
+- Dictations over 2 minutes paste the captured part with a note instead of failing
+- Fixes from a code review: AI polish no longer carries history between dictations, a dictation released during the permission prompt no longer leaves the mic open, the tokenizer download is atomic, the AI model loads once, and Tauri commands no longer block the main thread
+
+## v0.4.0
 
 New in v0.4.0 (bug fixes + features):
 
@@ -29,7 +36,7 @@ Windows & Linux (Tauri v2 app):
 
 - [x] Right Ctrl hotkey (rdev hook) + F6 fallback; hold-to-talk and tap-to-toggle
 - [x] Local transcription + optional AI polish; both models prewarmed at startup
-- [x] Floating dictation indicator (transparent, always-on-top, non-focus-stealing pill)
+- [x] Floating dictation panel with live text (transparent, always-on-top, non-focus-stealing)
 - [x] Audio capture supports every sample format the OS may report
 - [x] Transcription uses all CPU cores; no more truncation of long dictations
 - [x] Click-to-dictate button (Wayland fallback) with manual-copy fallback
