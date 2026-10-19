@@ -8,6 +8,7 @@ final class HUDController {
     private let dot = DotView()
     private let textArea: NSTextView
     private var hideWork: DispatchWorkItem?
+    private let textColor: NSColor
 
     private final class DotView: NSView {
         var color: NSColor = .systemRed { didSet { layer?.backgroundColor = color.cgColor } }
@@ -34,16 +35,34 @@ final class HUDController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hasShadow = true
 
-        let background = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 340, height: 88))
-        background.material = .hudWindow
-        background.state = .active
-        background.wantsLayer = true
-        background.layer?.cornerRadius = 14
-        background.layer?.masksToBounds = true
+        let frame = NSRect(x: 0, y: 0, width: 340, height: 88)
+        // Content goes in a plain view so it can sit inside either backdrop.
+        let content = NSView(frame: frame)
+        content.autoresizingMask = [.width, .height]
+        let background: NSView
+        if #available(macOS 26.0, *) {
+            // Native Liquid Glass; it adapts to what's behind, so text uses
+            // the dynamic label color.
+            let glass = NSGlassEffectView(frame: frame)
+            glass.cornerRadius = 20
+            glass.contentView = content
+            background = glass
+            textColor = .labelColor
+        } else {
+            let effect = NSVisualEffectView(frame: frame)
+            effect.material = .hudWindow
+            effect.state = .active
+            effect.wantsLayer = true
+            effect.layer?.cornerRadius = 14
+            effect.layer?.masksToBounds = true
+            effect.addSubview(content)
+            background = effect
+            textColor = .white
+        }
 
         dot.frame = NSRect(x: 18, y: 38, width: 12, height: 12)
         dot.wantsLayer = true
-        background.addSubview(dot)
+        content.addSubview(dot)
 
         let scroll = NSScrollView(frame: NSRect(x: 42, y: 10, width: 284, height: 68))
         scroll.hasVerticalScroller = false
@@ -58,7 +77,7 @@ final class HUDController {
         text.autoresizingMask = [.width]
         scroll.documentView = text
         textArea = text
-        background.addSubview(scroll)
+        content.addSubview(scroll)
 
         panel.contentView = background
     }
@@ -66,7 +85,7 @@ final class HUDController {
     private func update(_ text: String) {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 13),
-            .foregroundColor: NSColor.white,
+            .foregroundColor: textColor,
         ]
         textArea.textStorage?.setAttributedString(
             NSAttributedString(string: text, attributes: attributes)
